@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Runner vs Attacker (Stamina Ver)</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #111;
+            font-family: 'Consolas', monospace;
+            color: white;
+            overflow: hidden;
+            user-select: none;
+            /* 드래그 방지 */
+        }
+
+        /* 디버그 패널 */
+        #debug-panel {
+            width: 800px;
+            background: #222;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #555;
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        /* 게임 화면 */
+        #game-container {
+            width: 800px;
+            height: 300px;
+            border: 4px solid #555;
+            background-color: #dcdcdc;
+            position: relative;
+            overflow: hidden;
+            display: none;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+        }
+
+        /* UI 레이어 */
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            width: 100%;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 20;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+
+        #p1-status {
+            color: #0056b3;
+            font-weight: bold;
+            font-size: 24px;
+            text-shadow: 1px 1px 0 #fff;
+        }
+
+        /* 기력 게이지 (Attacker용) */
+        #p2-status {
+            text-align: right;
+            width: 250px;
+        }
+
+        #stamina-box {
+            width: 100%;
+            height: 15px;
+            background: #333;
+            border: 2px solid #000;
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #stamina-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ffcc00, #ff4444);
+            transition: width 0.1s linear;
+        }
+
+        #stamina-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            font-size: 10px;
+            line-height: 15px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 1px black;
+        }
+
+        /* 충전 표시 (Attacker 머리 위) */
+        #charge-indicator {
+            position: absolute;
+            bottom: 80px;
+            right: 40px;
+            color: red;
+            font-weight: bold;
+            font-size: 14px;
+            display: none;
+            z-index: 30;
+            animation: shake 0.1s infinite;
+        }
+
+        @keyframes shake {
+            0% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-2px);
+            }
+
+            75% {
+                transform: translateX(2px);
+            }
+        }
+
+        /* 게임 오브젝트 */
+        #ground {
+            width: 100%;
+            height: 20px;
+            background: #333;
+            position: absolute;
+            bottom: 0;
+            z-index: 5;
+        }
+
+        #player1 {
+            width: 30px;
+            height: 30px;
+            background: #007bff;
+            position: absolute;
+            bottom: 20px;
+            left: 80px;
+            border: 2px solid #004494;
+            z-index: 10;
+        }
+
+        #player2 {
+            width: 30px;
+            height: 50px;
+            background: #d63031;
+            position: absolute;
+            bottom: 20px;
+            right: 50px;
+            border: 2px solid #961e1e;
+            z-index: 10;
+        }
+
+        /* 장애물 */
+        .obstacle {
+            position: absolute;
+            z-index: 8;
+            transition: none;
+        }
+
+        .wall {
+            width: 20px;
+            background: #555;
+            border: 1px solid #222;
+            border-radius: 3px 3px 0 0;
+            /* 높이는 JS로 가변 */
+        }
+
+        .bullet {
+            width: 40px;
+            height: 12px;
+            /* 커진 총알 */
+            background: #222;
+            border-radius: 6px;
+            border: 2px solid #ffcc00;
+            box-shadow: 0 0 8px #ffcc00;
+            /* 발광 효과 */
+        }
+
+        /* 총알 꼬리 */
+        .bullet::after {
+            content: '';
+            position: absolute;
+            right: -10px;
+            top: 2px;
+            width: 10px;
+            height: 8px;
+            background: orange;
+            border-radius: 50%;
+        }
+
+        /* 메뉴 및 오버레이 */
+        #menu-screen,
+        #game-over {
+            position: absolute;
+            z-index: 999;
+            background: rgba(0, 0, 0, 0.95);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 20px;
+            cursor: pointer;
+            margin: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        input[type=text] {
+            padding: 10px;
+            font-size: 18px;
+            width: 300px;
+            text-align: center;
+        }
+
+        .copy-box {
+            background: #333;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #555;
+            user-select: text;
+            cursor: pointer;
+        }
+
+        #debug-log {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            font-size: 10px;
+            color: lime;
+            opacity: 0.7;
+            pointer-events: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="debug-log">Waiting...</div>
+
+    <div id="debug-panel">
+        <div class="control-group">
+            <label>⚡ 기력 회복 대기시간 (ms): <span id="val-regen" style="color:#0f0">1000</span></label>
+            <input type="range" id="input-regen" min="100" max="3000" step="100" value="1000">
+        </div>
+        <div class="control-group">
+            <label style="color:#aaa">💡 팁: ↓키를 꾹 누르면 벽이 높아집니다!</label>
+        </div>
+    </div>
+
+    <div id="menu-screen">
+        <h1>⚡ STAMINA RUNNER ⚡</h1>
+        <div id="menu-buttons">
+            <button class="btn" onclick="createRoom()">방 만들기 (Host)</button>
+            <br>
+            <input type="text" id="join-id-input" placeholder="ID 붙여넣기">
+            <button class="btn" style="background:#28a745;" onclick="joinRoom()">참가하기 (Guest)</button>
+        </div>
+        <div id="lobby-status" style="display:none;">
+            <p>ID를 클릭하여 복사하세요:</p>
+            <div class="copy-box" id="my-room-id" onclick="copyId()">ID 생성 중...</div>
+            <p style="color: yellow; margin-top:20px;">상대방 접속 대기 중...</p>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <div id="charge-indicator">CHARGING...</div>
+        <div id="ui-layer">
+            <div id="p1-status"><span id="score">0.0</span>s</div>
+            <div id="p2-status">
+                <div id="stamina-box">
+                    <div id="stamina-bar"></div>
+                    <div id="stamina-text">ENERGY</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="ground"></div>
+        <div id="player1"></div>
+        <div id="player2"></div>
+        <div id="obstacles-layer"></div>
+
+        <div id="game-over" style="display:none;">
+            <h1 id="winner-msg">GAME OVER</h1>
+            <p id="restart-msg" style="color:#aaa">Host can restart (SPACE)</p>
+        </div>
+    </div>
+
+    <script>
+        // === 게임 설정 (밸런스) ===
+        const CONFIG = GAME_CONFIG;
+
+        // === 전역 변수 ===
+        let peer, conn, myRole;
+        let state = {
+            isPlaying: false, isOver: false, score: 0, startTime: 0,
+            p1Y: 20, p1Vy: 0, p1Jump: false, p1Rot: 0,
+
+            stamina: 100,
+            lastActionTime: 0, // 마지막 행동 시각 (회복 딜레이용)
+            isCharging: false, // 벽 충전 중인지
+            chargeStart: 0,    // 충전 시작 시간
+
+            obs: [] // obstacles
+        };
+        let lastTime = 0, obsId = 0, loopInterval = null;
+
+        // === DOM Elements ===
+        const $ = (id) => document.getElementById(id);
+        const els = {
+            menu: $('menu-screen'), menuBtns: $('menu-buttons'), lobby: $('lobby-status'),
+            roomId: $('my-room-id'), joinIn: $('join-id-input'),
+            game: $('game-container'), obsLayer: $('obstacles-layer'),
+            p1: $('player1'), score: $('score'),
+            bar: $('stamina-bar'), barText: $('stamina-text'),
+            over: $('game-over'), winMsg: $('winner-msg'), log: $('debug-log'),
+            chargeInd: $('charge-indicator'),
+            inputRegen: $('input-regen'), valRegen: $('val-regen')
+        };
+
+        function log(msg) { els.log.innerText = msg; }
+
+        // 디버그 값 적용
+        els.inputRegen.addEventListener('input', (e) => {
+            CONFIG.regenWait = parseInt(e.target.value);
+            els.valRegen.innerText = CONFIG.regenWait;
+        });
+
+        // === NETWORK (PeerJS) ===
+        function createRoom() {
+            myRole = 'host';
+            els.menuBtns.style.display = 'none';
+            els.lobby.style.display = 'block';
+            peer = new Peer();
+            peer.on('open', id => { els.roomId.innerText = id; });
+            peer.on('connection', c => {
+                conn = c;
+                conn.on('open', () => { startGameHost(); });
+                conn.on('data', d => {
+                    if (d.type === 'INPUT') handleGuestInput(d.data);
+                });
+                conn.on('close', () => alert("상대방 연결 끊김"));
+            });
+        }
+
+        function joinRoom() {
+            const id = els.joinIn.value.trim();
+            if (!id) return alert("ID 입력 필요");
+            myRole = 'guest';
+            peer = new Peer();
+            peer.on('open', () => {
+                conn = peer.connect(id);
+                conn.on('open', () => {
+                    els.menu.style.display = 'none';
+                    els.game.style.display = 'block';
+                });
+                conn.on('data', d => { if (d.type === 'UPDATE') renderGame(d.s); });
+            });
+        }
+        function copyId() { navigator.clipboard.writeText(els.roomId.innerText); alert("ID 복사됨"); }
+
+        // === HOST LOGIC ===
+        function startGameHost() {
+            els.menu.style.display = 'none';
+            els.game.style.display = 'block';
+
+            state = {
+                isPlaying: true, isOver: false, score: 0, startTime: Date.now(),
+                p1Y: 20, p1Vy: 0, p1Jump: false, p1Rot: 0,
+                stamina: 100, lastActionTime: Date.now(),
+                isCharging: false, chargeStart: 0,
+                obs: []
+            };
+            lastTime = Date.now();
+            obsId = 0;
+
+            if (loopInterval) clearInterval(loopInterval);
+            loopInterval = setInterval(gameLoopHost, 16); // 60 FPS
+        }
+
+        // Guest(Attacker)의 입력을 Host가 처리
+        function handleGuestInput(input) {
+            if (state.isOver) return;
+
+            const now = Date.now();
+
+            // 1. 총알 발사 (위쪽 키)
+            if (input === 'BULLET') {
+                if (state.stamina >= CONFIG.bulletCost && !state.isCharging) {
+                    // 발사
+                    spawnBullet();
+                    state.stamina -= CONFIG.bulletCost;
+                    state.lastActionTime = now;
+                }
+            }
+
+            // 2. 벽 충전 시작 (아래쪽 키 누름)
+            if (input === 'WALL_CHARGE_START') {
+                if (state.stamina >= CONFIG.wallBaseCost && !state.isCharging) {
+                    state.isCharging = true;
+                    state.chargeStart = now;
+                }
+            }
+
+            // 3. 벽 생성 (아래쪽 키 뗌)
+            if (input === 'WALL_CHARGE_END') {
+                if (state.isCharging) {
+                    spawnWall(now);
+                    state.isCharging = false;
+                    state.lastActionTime = now;
+                }
+            }
+        }
+
+        function spawnBullet() {
+            state.obs.push({
+                id: ++obsId, type: 'bullet',
+                x: 720, y: 50, // 높이 조정
+                w: 40, h: 12,
+                spd: CONFIG.bulletSpeed
+            });
+        }
+
+        function spawnWall(now) {
+            // 충전 시간 계산
+            let chargeTime = now - state.chargeStart;
+            // 최대 1초까지만 충전 인정
+            if (chargeTime > 1000) chargeTime = 1000;
+
+            // 높이 계산 (기본 40 ~ 최대 100)
+            const height = 40 + (chargeTime / 1000 * 60);
+
+            // 비용 계산
+            const extraCost = (chargeTime / 16) * CONFIG.wallCostPerFrame;
+            let totalCost = CONFIG.wallBaseCost + extraCost;
+
+            // 기력이 부족하면? 현재 기력만큼만 벽 생성 (약화)
+            if (state.stamina < totalCost) {
+                // 기력 있는 만큼만
+                state.stamina = 0;
+            } else {
+                state.stamina -= totalCost;
+            }
+
+            state.obs.push({
+                id: ++obsId, type: 'wall',
+                x: 720, y: 20,
+                w: 20, h: height,
+                spd: CONFIG.wallSpeed
+            });
+        }
+
+        function gameLoopHost() {
+            if (!state.isPlaying) return;
+            const now = Date.now();
+
+            // 1. 기력 회복 로직
+            // 마지막 행동(또는 충전종료) 후 일정 시간이 지났고, 충전 중이 아닐 때
+            if (!state.isCharging && (now - state.lastActionTime > CONFIG.regenWait)) {
+                if (state.stamina < CONFIG.maxStamina) {
+                    state.stamina += CONFIG.regenRate;
+                    if (state.stamina > CONFIG.maxStamina) state.stamina = CONFIG.maxStamina;
+                }
+            }
+
+            // 2. 충전 중 기력 소모 확인 (기력 0되면 강제 발사)
+            if (state.isCharging) {
+                // 현재까지의 예상 소모량 계산
+                let chargeTime = now - state.chargeStart;
+                let currentCost = CONFIG.wallBaseCost + ((chargeTime / 16) * CONFIG.wallCostPerFrame);
+
+                if (state.stamina < currentCost) {
+                    // 기력 바닥남 -> 강제 발사
+                    spawnWall(now);
+                    state.isCharging = false;
+                    state.lastActionTime = now;
+                }
+            }
+
+            // 3. 점수 및 물리
+            state.score = ((now - state.startTime) / 1000).toFixed(2);
+
+            if (state.p1Jump || state.p1Y > 20) {
+                state.p1Vy -= CONFIG.gravity;
+                state.p1Y += state.p1Vy;
+                if (state.p1Y <= 20) { state.p1Y = 20; state.p1Vy = 0; state.p1Jump = false; state.p1Rot = 0; }
+                else { state.p1Rot = -state.p1Vy * 2; }
+            }
+
+            // 4. 장애물 이동 & 충돌
+            const p1Rect = { x: 80, y: state.p1Y, w: 30, h: 30 };
+            for (let i = state.obs.length - 1; i >= 0; i--) {
+                let o = state.obs[i];
+                o.x -= o.spd;
+                // AABB 충돌
+                if (p1Rect.x < o.x + o.w && p1Rect.x + p1Rect.w > o.x && p1Rect.y < o.y + o.h && p1Rect.y + p1Rect.h > o.y) {
+                    state.isOver = true; state.isPlaying = false;
+                    sendUpdate(); renderGame(state); return;
+                }
+                if (o.x < -100) state.obs.splice(i, 1);
+            }
+
+            sendUpdate();
+            renderGame(state);
+        }
+
+        function sendUpdate() {
+            if (conn && conn.open) { try { conn.send({ type: 'UPDATE', s: state }); } catch (e) { } }
+        }
+
+        // === RENDER (공통) ===
+        function renderGame(s) {
+            els.score.innerText = s.score;
+
+            // 기력 게이지 업데이트
+            els.bar.style.width = s.stamina + '%';
+            els.barText.innerText = Math.floor(s.stamina);
+
+            // 기력 부족 시 색상 변경
+            if (s.stamina < CONFIG.wallBaseCost) els.bar.style.background = '#555'; // 회색 (행동불가)
+            else els.bar.style.background = 'linear-gradient(90deg, #ffcc00, #ff4444)';
+
+            // 충전 표시 (Attacker가 누르고 있을 때)
+            els.chargeInd.style.display = s.isCharging ? 'block' : 'none';
+
+            // Player 1
+            els.p1.style.bottom = s.p1Y + 'px';
+            els.p1.style.transform = `rotate(${s.p1Rot}deg)`;
+
+            // Obstacles
+            els.obsLayer.innerHTML = '';
+            s.obs.forEach(o => {
+                const el = document.createElement('div');
+                el.className = 'obstacle ' + o.type;
+                el.style.left = o.x + 'px';
+                el.style.bottom = o.y + 'px';
+                el.style.width = o.w + 'px';
+                el.style.height = o.h + 'px';
+                els.obsLayer.appendChild(el);
+            });
+
+            // Game Over
+            if (s.isOver) {
+                els.winMsg.innerText = "ATTACKER WINS!";
+                els.over.style.display = 'flex';
+                els.p1.style.background = '#555';
+            } else {
+                els.over.style.display = 'none';
+                els.p1.style.background = '#007bff';
+            }
+        }
+
+        // === INPUT HANDLING ===
+        window.addEventListener('keydown', e => {
+            if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
+
+            // 1. HOST Input (Runner)
+            if (myRole === 'host') {
+                if (state.isOver && e.code === 'Space') startGameHost();
+                if (!state.isOver && e.code === 'Space' && !e.repeat) {
+                    if (!state.p1Jump) { state.p1Jump = true; state.p1Vy = CONFIG.jumpForce; }
+                    else state.p1Vy = -15;
+                }
+            }
+            // 2. GUEST Input (Attacker)
+            else if (myRole === 'guest' && conn && conn.open) {
+                if (e.code === 'ArrowUp' && !e.repeat) {
+                    conn.send({ type: 'INPUT', data: 'BULLET' });
+                }
+                if (e.code === 'ArrowDown' && !e.repeat) {
+                    // 꾹 누르기 시작
+                    conn.send({ type: 'INPUT', data: 'WALL_CHARGE_START' });
+                }
+            }
+        });
+
+        window.addEventListener('keyup', e => {
+            if (myRole === 'guest' && conn && conn.open) {
+                if (e.code === 'ArrowDown') {
+                    // 누르기 뗌 (벽 생성)
+                    conn.send({ type: 'INPUT', data: 'WALL_CHARGE_END' });
+                }
+            }
+        });
+
+    </script>
+</body>
+
+</html>

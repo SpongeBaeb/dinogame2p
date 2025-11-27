@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Runner vs Attacker (Local 2P) - Round System</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #222;
+            font-family: 'Consolas', monospace;
+            color: white;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .pixel-art {
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        #game-container {
+            width: 800px;
+            height: 300px;
+            border: 4px solid #666;
+            background-color: #dcdcdc;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            width: 100%;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 20;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+
+        #p1-status,
+        #p2-status {
+            width: 250px;
+        }
+
+        #p2-status {
+            text-align: right;
+        }
+
+        .large-score {
+            color: #0056b3;
+            font-weight: bold;
+            font-size: 24px;
+            text-shadow: 1px 1px 0 #fff;
+        }
+
+        #timer {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            text-shadow: 2px 2px 0 #fff;
+            z-index: 21;
+        }
+
+        #timer.warning {
+            color: #ff4444;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: translateX(-50%) scale(1);
+            }
+
+            50% {
+                transform: translateX(-50%) scale(1.1);
+            }
+        }
+
+        #stamina-box {
+            width: 100%;
+            height: 15px;
+            background: #333;
+            border: 2px solid #000;
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #stamina-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ffcc00, #ff4444);
+            transition: width 0.1s linear;
+        }
+
+        #stamina-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            font-size: 10px;
+            line-height: 15px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 1px black;
+        }
+
+        .status-indicator {
+            position: absolute;
+            bottom: 80px;
+            right: 40px;
+            font-weight: bold;
+            font-size: 14px;
+            display: none;
+            z-index: 30;
+        }
+
+        #charge-indicator {
+            color: red;
+            animation: shake 0.1s infinite;
+        }
+
+        #cooldown-indicator {
+            color: #555;
+            font-size: 12px;
+            bottom: 75px;
+            right: 50px;
+        }
+
+        @keyframes shake {
+            0% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-2px);
+            }
+
+            75% {
+                transform: translateX(2px);
+            }
+        }
+
+        #ground {
+            width: 100%;
+            height: 45px;
+            background-image: url('assets/ground.png');
+            background-size: auto 45px;
+            background-repeat: repeat-x;
+            background-position: 0 0;
+            position: absolute;
+            bottom: 5px;
+            left: 0;
+            z-index: 10;
+        }
+
+        #debug-box {
+            position: absolute;
+            border: 2px solid lime;
+            background: rgba(0, 255, 0, 0.1);
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        #player1,
+        #player2 {
+            position: absolute;
+            width: 64px;
+            height: 64px;
+            background-repeat: no-repeat;
+            background-size: auto 64px;
+            z-index: 15;
+        }
+
+        #player2.cooldown {
+            filter: grayscale(100%);
+            opacity: 0.7;
+        }
+
+        .obstacle {
+            position: absolute;
+            z-index: 11;
+        }
+
+        .wall {
+            width: 20px;
+            background-image: url('assets/wall.png');
+            background-size: 20px auto;
+            background-repeat: repeat-y;
+            background-position: center bottom;
+            border: 1px solid #222;
+            border-radius: 3px 3px 0 0;
+        }
+
+        .bullet {
+            width: 64px;
+            height: 64px;
+            background-image: url('assets/fireball.png');
+            background-size: auto 96px;
+            background-repeat: no-repeat;
+            image-rendering: pixelated;
+        }
+
+        /* Character Selection UI */
+        #char-select {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        #char-grid {
+            display: flex;
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .char-card {
+            width: 100px;
+            height: 140px;
+            border: 2px solid #444;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #222;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .char-card.selected-p1 {
+            border-color: #007bff;
+            box-shadow: 0 0 15px #007bff;
+        }
+
+        .char-card.selected-p2 {
+            border-color: #ff4444;
+            box-shadow: 0 0 15px #ff4444;
+        }
+
+        .char-preview {
+            width: 64px;
+            height: 64px;
+            background-repeat: no-repeat;
+            background-size: auto 64px;
+            image-rendering: pixelated;
+            margin-bottom: 10px;
+        }
+
+        .char-name {
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .p1-cursor,
+        .p2-cursor {
+            position: absolute;
+            top: -10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .p1-cursor {
+            left: 50%;
+            transform: translateX(-50%);
+            background: #007bff;
+        }
+
+        .p2-cursor {
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ff4444;
+            top: auto;
+            bottom: -10px;
+        }
+
+        .controls-hint {
+            margin-top: 20px;
+            text-align: center;
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        #sliders {
+            margin-top: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .slider-container {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            width: 300px;
+        }
+
+        .blink {
+            animation: blinker 1s linear infinite;
+        }
+
+        @keyframes blinker {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 60;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game-container">
+        <!-- Character Selection UI -->
+        <div id="char-select">
+            <h1>SELECT YOUR CHARACTER</h1>
+            <div id="char-grid"></div>
+            <div class="controls-hint">
+                <div class="p1-hint">P1: A/D to Move, SPACE to Select</div>
+                <div class="p2-hint">P2: Arrows to Move, ENTER to Select</div>
+            </div>
+        </div>
+
+        <div id="ui-layer">
+            <div id="p1-status">
+                <div style="color:#007bff; font-weight:bold; margin-bottom:5px;">P1</div>
+                <div class="large-score">0</div>
+                <div id="stamina-box">
+                    <div id="stamina-bar"></div>
+                    <div id="stamina-text">STAMINA</div>
+                </div>
+            </div>
+            <div id="timer">60</div>
+            <div id="p2-status">
+                <div style="color:#ff4444; font-weight:bold; margin-bottom:5px;">P2</div>
+                <div class="large-score">0</div>
+            </div>
+        </div>
+
+        <div id="ground"></div>
+        <div id="obstacles-layer"></div>
+
+        <div id="player1" class="pixel-art"></div>
+        <div id="player2" class="pixel-art"></div>
+
+        <div id="debug-box"></div>
+        <!-- FPS COUNTER (DELETE LATER) -->
+        <div id="fps-counter"
+            style="position: absolute; top: 5px; right: 5px; color: lime; font-weight: bold; z-index: 100; font-family: monospace;">
+            FPS: 0</div>
+        <!-- END FPS COUNTER -->
+
+        <div class="status-indicator" id="charge-indicator">⚠️ CHARGING!</div>
+        <div class="status-indicator" id="cooldown-indicator">⏳ COOLDOWN</div>
+        <div class=" status-indicator" id="bomb-indicator" style="bottom: 110px; color: orange;">💣 BOMB READY</div>
+
+        <div id="start-screen" style="display: none;">
+            <h1>RUNNER VS ATTACKER</h1>
+            <p>Round 1: P1 Runs, P2 Attacks</p>
+            <p>Round 2: Roles Swap</p>
+            <p class="blink">PRESS SPACE TO START</p>
+
+            <div style="margin-top: 20px; font-size: 14px; color: #aaa;">
+                <p>P1 Controls: W (Jump), S (Sneak/Charge)</p>
+                <p>P2 Controls: ARROWS (Move/Attack)</p>
+            </div>
+
+            <div id="sliders">
+                <div class="slider-container">
+                    <label>Wall Tile Size: <span id="val-wall-tile">40</span></label>
+                    <input type="range" id="input-wall-tile" min="10" max="100" value="40">
+                </div>
+                <div class="slider-container">
+                    <label>Ground Speed: <span id="val-ground-speed">3</span></label>
+                    <input type="range" id="input-ground-speed" min="0" max="20" value="3">
+                </div>
+                <div class="slider-container">
+                    <label>Stamina Regen Wait: <span id="val-regen">1000</span>ms</label>
+                    <input type="range" id="input-regen" min="0" max="5000" value="1000" step="100">
+                </div>
+                <!-- New Sliders -->
+                <div class="slider-container">
+                    <label>Recoil Jump: <span id="val-recoil-jump">5</span></label>
+                    <input type="range" id="input-recoil-jump" min="0" max="20" value="5">
+                </div>
+                <div class="slider-container">
+                    <label>Recoil Lookback: <span id="val-recoil-time">20</span> frames</label>
+                    <input type="range" id="input-recoil-time" min="0" max="60" value="20">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over" style="display:none;">
+        <h1 id="winner-msg">GAME OVER</h1>
+        <p>Press SPACE to Restart</p>
+        <button onclick="location.reload()">🔄 Reset All</button>
+    </div>
+    </div>
+    <script>
+        window.onerror = function (msg, url, line, col, error) {
+            const div = document.createElement('div');
+            div.style.position = 'fixed';
+            div.style.top = '0';
+            div.style.left = '0';
+            div.style.width = '100%';
+            div.style.background = 'red';
+            div.style.color = 'white';
+            div.style.padding = '10px';
+            div.style.zIndex = '9999';
+            div.innerText = 'ERROR: ' + msg + ' at ' + line + ':' + col;
+            document.body.appendChild(div);
+            return false;
+        };
+
+        const CONFIG = {
+            gravity: 0.4,
+            jumpForce: 10,
+            maxStamina: 100,
+            regenRate: 5,
+            regenWait: 1000,
+            bulletCost: 20,
+            bulletSpeed: 8,
+            wallBaseCost: 30,
+            wallCostPerFrame: 0.5,
+            wallSpeed: 5,
+            wallCooldown: 500,
+            bulletCooldown: 500,
+            roundTime: 60000,
+            animIntervalStart: 6,
+            animIntervalEnd: 3,
+            runFrames: 6,
+            jumpFrames: 4,
+            fallFrames: 4,
+            minSpeed: 3,
+            maxSpeed: 12,
+            minCooldown: 200,
+            maxCooldown: 1000,
+            doubleJumpCooldown: 2000,
+            characters: ['mort', 'doux', 'tard', 'vita'],
+            sneakOffset: 6,
+            recoilJumpForce: 5,
+            recoilDuration: 20,
+        };
+
+        const state = {
+            isPlaying: false,
+            score: 0,
+            scores: { p1: 0, p2: 0 },
+            round: 1,
+            stamina: 100,
+            lastActionTime: 0,
+            isCharging: false,
+            chargeStart: 0,
+            lastWallTime: 0,
+            lastBulletTime: 0,
+            obs: [],
+            p1Y: 40,
+            p1Vy: 0,
+            p1Jump: false,
+            p1Rot: 0,
+            p1Sneak: false,
+            startTime: 0,
+            scoreAccumulator: 0,
+            anim: { frame: 0, timer: 0, state: 'run' },
+            p2Anim: { frame: 0, timer: 0 },
+            jumpCount: 0,
+            lastDoubleJumpTime: 0,
+            selectionPhase: true,
+            p1Char: 'mort',
+            p2Char: 'doux',
+            p2Y: 40,
+            p2Vy: 0,
+            recoilTimer: 0,
+            explosions: []
+        };
+
+        const els = {
+            game: document.getElementById('game-container'),
+            p1: document.getElementById('player1'),
+            p2: document.getElementById('player2'),
+            ground: document.getElementById('ground'),
+            obsLayer: document.getElementById('obstacles-layer'),
+            timer: document.getElementById('timer'),
+            p1Status: document.getElementById('p1-status'),
+            p2Status: document.getElementById('p2-status'),
+            chargeInd: document.getElementById('charge-indicator'),
+            coolInd: document.getElementById('cooldown-indicator'),
+            bombInd: document.getElementById('bomb-indicator'),
+            start: document.getElementById('start-screen'),
+            over: document.getElementById('game-over'),
+            winMsg: document.getElementById('winner-msg')
+        };
+
+        let loopId = 0;
+        let obsId = 0;
+        let lastFrameTime = 0;
+        let lastSelTime = 0; // [NEW] Track time for selection animation
+
+        const frameDelay = 1000 / 60;
+        let groundScrollX = 0;
+        let groundSpeed = 3;
+
+        // Character Selection State
+        let p1SelIndex = 0;
+        let p2SelIndex = 1;
+        let p1Confirmed = false;
+        let p2Confirmed = false;
+        let selAnimFrame = 0;
+        let selAnimTimer = 0;
+        let wallTileSize = 40;
+        let obstaclePool = [];  // Add this line - pool of reusable DOM elements
+        let explosionPool = [];
+
+        const p1Rect = { x: 40, y: 40, w: 32, h: 32 }; // 32x32px Hitbox
+
+        function initGame() {
+            // Initialize Sliders
+            document.getElementById('input-ground-speed').addEventListener('input', (e) => {
+                groundSpeed = parseInt(e.target.value);
+                document.getElementById('val-ground-speed').innerText = groundSpeed;
+            });
+            document.getElementById('input-wall-tile').addEventListener('input', (e) => {
+                wallTileSize = parseInt(e.target.value);
+                document.getElementById('val-wall-tile').innerText = wallTileSize;
+            });
+            document.getElementById('input-regen').addEventListener('input', (e) => {
+                CONFIG.regenWait = parseInt(e.target.value);
+                document.getElementById('val-regen').innerText = CONFIG.regenWait;
+            });
+            document.getElementById('input-recoil-jump').addEventListener('input', (e) => {
+                CONFIG.recoilJumpForce = parseInt(e.target.value);
+                document.getElementById('val-recoil-jump').innerText = CONFIG.recoilJumpForce;
+            });
+            document.getElementById('input-recoil-time').addEventListener('input', (e) => {
+                CONFIG.recoilDuration = parseInt(e.target.value);
+                document.getElementById('val-recoil-time').innerText = CONFIG.recoilDuration;
+            });
+            updateSelection();
+        }
+
+        function updateSelection(timestamp) {
+            if (!state.selectionPhase) return;
+
+            // [NEW] Time-based animation logic
+            const now = timestamp || performance.now();
+            if (!lastSelTime) lastSelTime = now;
+            const deltaTime = now - lastSelTime;
+            lastSelTime = now;
+
+            const grid = document.getElementById('char-grid');
+            grid.innerHTML = '';
+
+            // Update Animation
+            selAnimTimer += deltaTime;
+            if (selAnimTimer > 166) {
+                selAnimTimer -= 166;
+                selAnimFrame = (selAnimFrame + 1) % 4;
+            }
+
+            CONFIG.characters.forEach((char, index) => {
+                const card = document.createElement('div');
+                card.className = 'char-card';
+                if (index === p1SelIndex) card.classList.add('selected-p1');
+                if (index === p2SelIndex) card.classList.add('selected-p2');
+
+                // Lock visual
+                if ((p1Confirmed && index === p1SelIndex && index !== p2SelIndex) ||
+                    (p2Confirmed && index === p2SelIndex && index !== p1SelIndex)) {
+                    card.style.opacity = '0.5';
+                }
+
+                const preview = document.createElement('div');
+                preview.className = 'char-preview';
+                preview.style.backgroundImage = `url('assets/${char}.png')`;
+                preview.style.backgroundPosition = `-${selAnimFrame * 64}px 0`;
+                card.appendChild(preview);
+
+                const name = document.createElement('div');
+                name.className = 'char-name';
+                name.innerText = char;
+                card.appendChild(name);
+
+                if (index === p1SelIndex) {
+                    const cursor = document.createElement('div');
+                    cursor.className = 'p1-cursor';
+                    cursor.innerText = p1Confirmed ? 'READY' : 'P1';
+                    card.appendChild(cursor);
+                }
+
+                if (index === p2SelIndex) {
+                    const cursor = document.createElement('div');
+                    cursor.className = 'p2-cursor';
+                    cursor.innerText = p2Confirmed ? 'READY' : 'P2';
+                    card.appendChild(cursor);
+                }
+
+                grid.appendChild(card);
+            });
+
+            if (p1Confirmed && p2Confirmed) {
+                setTimeout(() => {
+                    state.selectionPhase = false;
+                    state.p1Char = CONFIG.characters[p1SelIndex];
+                    state.p2Char = CONFIG.characters[p2SelIndex];
+                    document.getElementById('char-select').style.display = 'none';
+                    startGame();
+                }, 500);
+                return;
+            }
+
+            requestAnimationFrame(updateSelection);
+        }
+
+        function startGame() {
+            state.scores.p1 = 0;
+            state.scores.p2 = 0;
+            startRound(1);
+        }
+
+        function startRound(roundNum) {
+            state.round = roundNum;
+            state.isPlaying = true;
+            state.p2Y = 40;
+            state.p2Vy = 0;
+            state.recoilTimer = 0;
+            state.score = 0;
+            state.scoreAccumulator = 0;
+            state.startTime = Date.now();
+            state.p1Y = 40;
+
+            if (state.round === 1) {
+                p1Rect.x = 60;
+            } else {
+                p1Rect.x = 666;
+            }
+
+            state.p1Vy = 0;
+            state.p1Jump = false;
+            state.p1Rot = 0;
+            state.stamina = 100;
+            state.lastActionTime = Date.now();
+            state.isCharging = false;
+            state.chargeStart = 0;
+            state.lastWallTime = 0;
+            state.lastBulletTime = 0;
+            state.obs = [];
+
+            state.anim = { frame: 0, timer: 0, state: 'run' };
+            state.jumpCount = 0;
+            state.lastDoubleJumpTime = 0;
+            obsId = 0;
+
+            if (loopId) cancelAnimationFrame(loopId);
+            lastFrameTime = Date.now();
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (!state.isPlaying) return;
+
+            try {
+                const now = Date.now();
+                const deltaTime = now - lastFrameTime;
+
+                if (deltaTime < frameDelay) {
+                    loopId = requestAnimationFrame(gameLoop);
+                    return;
+                }
+
+                lastFrameTime = now - (deltaTime % frameDelay);
+
+                // --- FPS COUNTER START (DELETE LATER) ---
+                const fps = Math.round(1000 / deltaTime);
+                const fpsEl = document.getElementById('fps-counter');
+                if (fpsEl) fpsEl.innerText = 'FPS: ' + fps;
+                // --- FPS COUNTER END ---
+
+                if (now - state.startTime >= CONFIG.roundTime) {
+                    endRound("TIME UP! SURVIVED!");
+                    return;
+                }
+
+                // Dynamic Speed Calculation
+                const progress = (now - state.startTime) / CONFIG.roundTime;
+                const currentSpeed = CONFIG.minSpeed + progress * (CONFIG.maxSpeed - CONFIG.minSpeed);
+                const clampedSpeed = Math.min(CONFIG.maxSpeed, Math.max(CONFIG.minSpeed, currentSpeed));
+
+                groundSpeed = clampedSpeed;
+                CONFIG.wallSpeed = clampedSpeed;
+                CONFIG.bulletSpeed = clampedSpeed + 3;
+
+                // Dynamic Cooldown Calculation
+                const currentCooldown = CONFIG.maxCooldown - progress * (CONFIG.maxCooldown - CONFIG.minCooldown);
+                const clampedCooldown = Math.max(CONFIG.minCooldown, Math.min(CONFIG.maxCooldown, currentCooldown));
+
+                CONFIG.wallCooldown = clampedCooldown;
+                CONFIG.bulletCooldown = clampedCooldown;
+
+                document.getElementById('cooldown-indicator').innerText = "⏳ COOLDOWN: " + Math.floor(clampedCooldown);
+
+                // Stamina Regen
+                if (!state.isCharging && (now - state.lastActionTime > CONFIG.regenWait)) {
+                    if (state.stamina < CONFIG.maxStamina) {
+                        state.stamina += CONFIG.regenRate;
+                        if (state.stamina > CONFIG.maxStamina) state.stamina = CONFIG.maxStamina;
+                    }
+                }
+
+                // Charging Logic
+                if (state.isCharging) {
+                    let chargeTime = now - state.chargeStart;
+                    let currentCost = CONFIG.wallBaseCost + ((chargeTime / 16) * CONFIG.wallCostPerFrame);
+                    if (state.stamina < currentCost) {
+                        spawnWall(now);
+                        state.isCharging = false;
+                        state.lastActionTime = now;
+                    }
+                }
+
+                // Score
+                state.scoreAccumulator += 0.1;
+                if (state.scoreAccumulator >= 1) {
+                    state.score += Math.floor(state.scoreAccumulator);
+                    state.scoreAccumulator -= Math.floor(state.scoreAccumulator);
+                }
+
+                // Physics (Jump/Gravity)
+                if (state.p1Jump || state.p1Y > 40) {
+                    state.p1Vy -= CONFIG.gravity;
+                    state.p1Y += state.p1Vy;
+
+                    if (state.p1Y <= 40) {
+                        state.p1Y = 40;
+                        state.p1Vy = 0;
+                        state.p1Jump = false;
+                        state.p1Rot = 0;
+                        state.jumpCount = 0;
+                    } else {
+                        state.p1Rot = -state.p1Vy * 2;
+                    }
+                }
+                // P2 Physics (Recoil Jump)
+                if (state.p2Y > 40 || state.p2Vy !== 0) {
+                    state.p2Vy -= CONFIG.gravity;
+                    state.p2Y += state.p2Vy;
+                    if (state.p2Y <= 40) {
+                        state.p2Y = 40;
+                        state.p2Vy = 0;
+                    }
+                }
+
+                // Recoil Timer
+                if (state.recoilTimer > 0) {
+                    state.recoilTimer--;
+                }
+                // Animation State
+                let nextAnimState = 'run';
+                if (state.p1Y > 40) {
+                    if (state.p1Vy > 0) nextAnimState = 'jump';
+                    else nextAnimState = 'fall';
+                } else if (state.p1Sneak) {
+                    nextAnimState = 'sneak';
+                }
+
+                if (state.anim.state !== nextAnimState) {
+                    state.anim.state = nextAnimState;
+                    state.anim.frame = 0;
+                    state.anim.timer = 0;
+                }
+
+                // Animation Frame Update
+                const animProgress = (now - state.startTime) / CONFIG.roundTime;
+                const currentAnimInterval = CONFIG.animIntervalStart - animProgress * (CONFIG.animIntervalStart - CONFIG.animIntervalEnd);
+                const clampedAnimInterval = Math.max(CONFIG.animIntervalEnd, Math.min(CONFIG.animIntervalStart, currentAnimInterval));
+
+                state.anim.timer++;
+                if (state.anim.timer >= clampedAnimInterval) {
+                    state.anim.timer = 0;
+                    state.anim.frame++;
+
+                    let maxFrames = CONFIG.runFrames;
+                    if (state.anim.state === 'jump') maxFrames = CONFIG.jumpFrames;
+                    if (state.anim.state === 'fall') maxFrames = CONFIG.fallFrames;
+                    if (state.anim.state === 'sneak') maxFrames = 6;
+
+                    if (state.anim.frame >= maxFrames) {
+                        state.anim.frame = 0;
+                    }
+                }
+
+                // Update P2 (Attacker) animation - always running
+                state.p2Anim.timer++;
+                if (state.p2Anim.timer >= clampedAnimInterval) {
+                    state.p2Anim.timer = 0;
+                    state.p2Anim.frame++;
+                    if (state.p2Anim.frame >= CONFIG.runFrames) {
+                        state.p2Anim.frame = 0;
+                    }
+                }
+
+                // Update explosions
+                for (let i = state.explosions.length - 1; i >= 0; i--) {
+                    let exp = state.explosions[i];
+                    exp.timer++;
+                    if (exp.timer >= 3) {  // Change frame every 3 ticks
+                        exp.timer = 0;
+                        exp.frame++;
+                        if (exp.frame >= 9) {  // 9 frames total
+                            state.explosions.splice(i, 1);  // Remove when done
+                        }
+                    }
+                }
+                p1Rect.y = state.p1Y;
+
+                // Collision Logic with Sneak
+                const p1H = state.p1Sneak ? (p1Rect.h - CONFIG.sneakOffset) : p1Rect.h;
+
+                // Debug box update
+                const debugBox = document.getElementById('debug-box');
+                debugBox.style.left = p1Rect.x + 'px';
+                debugBox.style.bottom = p1Rect.y + 'px';
+                debugBox.style.width = p1Rect.w + 'px';
+                debugBox.style.height = p1H + 'px';
+
+                // Obstacle Logic
+                for (let i = state.obs.length - 1; i >= 0; i--) {
+                    let o = state.obs[i];
+                    const dir = (o.spd > 0) ? 1 : -1;
+                    o.spd = (o.type === 'bullet') ? dir * CONFIG.bulletSpeed : dir * CONFIG.wallSpeed;
+                    o.x += o.spd;
+
+                    // Collision Check
+                    if (p1Rect.x < o.x + o.w && p1Rect.x + p1Rect.w > o.x &&
+                        p1Rect.y < o.y + o.h && p1Rect.y + p1H > o.y) {
+                        endRound("HIT OBSTACLE!");
+                        return;
+                    }
+
+                    // Animate bullets
+                    if (o.type === 'bullet') {
+                        o.animTimer++;
+                        if (o.animTimer >= 3) {  // Change frame every 3 game ticks
+                            o.animTimer = 0;
+                            o.animFrame = (o.animFrame + 1) % 14;  // Cycle through 14 frames
+                        }
+                    }
+
+                    if (!o.passed) {
+                        if ((state.round === 1 && o.x + o.w < p1Rect.x) || (state.round === 2 && o.x > p1Rect.x + p1Rect.w)) {
+                            o.passed = true;
+                            state.score += 100;
+                        }
+                    }
+
+                    if (o.x < -100 || o.x > 900) state.obs.splice(i, 1);
+                }
+
+                render(now);
+                loopId = requestAnimationFrame(gameLoop);
+            } catch (e) {
+                console.error(e);
+                const div = document.createElement('div');
+                div.style.position = 'fixed';
+                div.style.top = '50px';
+                div.style.left = '0';
+                div.style.background = 'orange';
+                div.style.color = 'black';
+                div.innerText = 'Loop Error: ' + e.message;
+                document.body.appendChild(div);
+            }
+        }
+
+        function endRound(reason) {
+            state.isPlaying = false;
+            cancelAnimationFrame(loopId);
+
+            if (state.round === 1) state.scores.p1 = state.score;
+            else state.scores.p2 = state.score;
+
+            if (state.round === 1) {
+                alert(reason + "\nRound 1 Over!\nP1 Score: " + state.score + "\n\nSwap Roles! P2 Runs!");
+                startRound(2);
+            } else {
+                let winner = "";
+                if (state.scores.p1 > state.scores.p2) winner = "PLAYER 1 WINS!";
+                else if (state.scores.p2 > state.scores.p1) winner = "PLAYER 2 WINS!";
+                else winner = "DRAW!";
+
+                els.winMsg.innerText = winner + "\n(" + state.scores.p1 + " vs " + state.scores.p2 + ")";
+                els.over.style.display = 'flex';
+            }
+        }
+
+        function spawnWall(now) {
+            if (now - state.lastWallTime < CONFIG.wallCooldown) return;
+            state.lastWallTime = now;
+            state.stamina -= CONFIG.wallBaseCost;
+
+            const spawnX = (state.round === 1) ? 700 : 50;
+            const spd = (state.round === 1) ? -CONFIG.wallSpeed : CONFIG.wallSpeed;
+
+            state.obs.push({
+                type: 'wall',
+                x: spawnX,
+                y: 40,
+                w: 20,
+                h: wallTileSize,
+                spd: spd,
+                passed: false
+            });
+        }
+
+        function spawnBullet(now) {
+            if (now - state.lastBulletTime < CONFIG.bulletCooldown) return;
+            if (state.stamina < CONFIG.bulletCost) return;
+
+            state.lastBulletTime = now;
+            state.stamina -= CONFIG.bulletCost;
+            // Apply Recoil
+            state.p2Vy = CONFIG.recoilJumpForce;
+            state.recoilTimer = CONFIG.recoilDuration;
+
+
+            const spawnX = (state.round === 1) ? 700 : 50;
+            const spd = (state.round === 1) ? -CONFIG.bulletSpeed : CONFIG.bulletSpeed;
+
+            // Random height between 50 and 150
+            const y = 70
+
+            state.obs.push({
+                type: 'bullet',
+                x: spawnX,
+                y: y,
+                w: 48,
+                h: 12,
+                spd: spd,
+                passed: false,
+                animFrame: 0,  // Add this for animation
+                animTimer: 0   // Add this for animation timing
+            });
+        }
+
+        function spawnExplosion(x, y) {
+            state.explosions.push({
+                x: x,
+                y: y,
+                frame: 0,
+                timer: 0,
+                lifetime: 0
+            });
+        }
+
+        function render(now) {
+            // Render Player 1 (Runner)
+            const charName = (state.round === 1) ? state.p1Char : state.p2Char;
+
+            // Frame Calculation
+            let frameIndex = 0;
+            if (state.anim.state === 'run') {
+                frameIndex = 4 + state.anim.frame; // Run frames 5-10 (indices 4-9)
+            } else if (state.anim.state === 'jump') {
+                frameIndex = 12; // Jump frame
+            } else if (state.anim.state === 'fall') {
+                frameIndex = 8; // Fall frame
+            } else if (state.anim.state === 'sneak') {
+                frameIndex = 18 + state.anim.frame; // Sneak frames start at 18
+            }
+
+            els.p1.style.backgroundImage = `url('assets/${charName}.png')`;
+            els.p1.style.backgroundPosition = `-${frameIndex * 64}px 0`;
+
+            // Offset to center 64px sprite on 32px collider
+            const spriteOffset = (64 - p1Rect.w) / 2; // (64-32)/2 = 16px offset
+            els.p1.style.left = (p1Rect.x - spriteOffset) + 'px';
+            els.p1.style.bottom = (state.p1Y - spriteOffset) + 'px';
+            // Flip left in round 2, rotate for jump
+            const flipX = (state.round === 2) ? 'scaleX(-1)' : 'scaleX(1)';
+            els.p1.style.transform = `${flipX} rotate(${state.p1Rot}deg)`;
+
+            // Render Player 2 (Both players running)
+            const p2CharName = (state.round === 1) ? state.p2Char : state.p1Char;
+            els.p2.style.backgroundImage = `url('assets/${p2CharName}.png')`;
+            const p2FrameIndex = 4 + state.p2Anim.frame; // P2's own running animation (frames 5-10)
+            els.p2.style.backgroundPosition = `-${p2FrameIndex * 64}px 0`;
+            const p2SpriteOffset = (64 - 32) / 2; // Same 16px offset
+            els.p2.style.left = ((state.round === 1 ? 700 : 50) - p2SpriteOffset) + 'px';
+            els.p2.style.bottom = (state.p2Y - p2SpriteOffset) + 'px';
+
+            // Flip logic
+            let p2Scale = (state.round === 2) ? -1 : 1;
+            if (state.recoilTimer > 0) p2Scale *= -1; // Reverse direction during recoil
+            els.p2.style.transform = `scaleX(${p2Scale})`;
+
+            // Render Explosions
+            // Render Explosions - using object pooling
+            state.explosions.forEach((exp, index) => {
+                let expDiv = explosionPool[index];
+                if (!expDiv) {
+                    expDiv = document.createElement('div');
+                    expDiv.style.position = 'absolute';
+                    expDiv.style.width = '48px';
+                    expDiv.style.height = '48px';
+                    expDiv.style.backgroundImage = "url('assets/explosion.png')";
+                    expDiv.style.backgroundSize = 'auto 48px';
+                    expDiv.style.imageRendering = 'pixelated';
+                    expDiv.style.zIndex = '12';
+                    els.obsLayer.appendChild(expDiv);
+                    explosionPool.push(expDiv);
+                }
+                expDiv.style.display = 'block';
+                expDiv.style.left = exp.x + 'px';
+                expDiv.style.bottom = exp.y + 'px';
+                expDiv.style.backgroundPosition = `-${exp.frame * 48}px 0`;
+            });
+
+            // Hide unused explosion divs
+            for (let i = state.explosions.length; i < explosionPool.length; i++) {
+                explosionPool[i].style.display = 'none';
+            }
+
+            // Cooldown Visual
+            if (state.stamina < CONFIG.wallBaseCost) {
+                els.p2.classList.add('cooldown');
+            } else {
+                els.p2.classList.remove('cooldown');
+            }
+
+            // Render Obstacles - using object pooling for performance
+            state.obs.forEach((o, index) => {
+                // Reuse existing div or create new one
+                let div = obstaclePool[index];
+                if (!div) {
+                    div = document.createElement('div');
+                    els.obsLayer.appendChild(div);
+                    obstaclePool.push(div);
+                }
+
+                div.style.display = 'block';
+                div.className = 'obstacle ' + o.type;
+
+                // For bullets, render larger than collision box
+                if (o.type === 'bullet') {
+                    const renderWidth = 96;
+                    const renderHeight = 96;
+                    const offsetX = (renderWidth - o.w) / 2;
+                    const offsetY = (renderHeight - o.h) / 2;
+
+                    div.style.left = (o.x - offsetX) + 'px';
+                    div.style.bottom = (o.y - offsetY) + 'px';
+                    div.style.width = renderWidth + 'px';
+                    div.style.height = renderHeight + 'px';
+
+                    // Animation
+                    div.style.backgroundPosition = `-${o.animFrame * 96}px 0`;
+                    div.style.transform = (state.round === 1) ? 'scaleX(-1)' : 'scaleX(1)';
+
+                    // Collision box visualization - REMOVE THIS FOR BETTER PERFORMANCE
+                    // div.innerHTML = `...`;  // Comment this out or remove it
+                } else {
+                    // Normal rendering for walls
+                    div.style.left = o.x + 'px';
+                    div.style.bottom = o.y + 'px';
+                    div.style.width = o.w + 'px';
+                    div.style.height = o.h + 'px';
+                }
+            });
+
+            // Hide unused divs
+            for (let i = state.obs.length; i < obstaclePool.length; i++) {
+                obstaclePool[i].style.display = 'none';
+            }
+
+            // UI Updates
+            els.timer.innerText = Math.ceil((CONFIG.roundTime - (now - state.startTime)) / 1000);
+            if (parseInt(els.timer.innerText) <= 10) els.timer.classList.add('warning');
+            else els.timer.classList.remove('warning');
+
+            document.querySelector('#p1-status .large-score').innerText = (state.round === 1) ? state.score : state.scores.p1;
+            document.querySelector('#p2-status .large-score').innerText = (state.round === 2) ? state.score : state.scores.p2;
+
+            document.getElementById('stamina-bar').style.width = state.stamina + '%';
+            document.getElementById('stamina-text').innerText = Math.floor(state.stamina) + '%';
+
+            els.chargeInd.style.display = state.isCharging ? 'block' : 'none';
+            els.coolInd.style.display = (now - state.lastWallTime < CONFIG.wallCooldown) ? 'block' : 'none';
+
+            // Ground Scroll
+            if (state.round === 1) {
+                groundScrollX = (groundScrollX + groundSpeed) % 800;
+            } else {
+                groundScrollX = (groundScrollX - groundSpeed);
+                if (groundScrollX < 0) groundScrollX += 800;
+            }
+            els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
+        }
+
+        // Input Handling
+        window.addEventListener('keydown', e => {
+            if (state.selectionPhase) {
+                // P1 Selection Controls
+                if (e.key === 'a' || e.key === 'A') {
+                    if (!p1Confirmed) {
+                        p1SelIndex = (p1SelIndex - 1 + CONFIG.characters.length) % CONFIG.characters.length;
+                    }
+                }
+                if (e.key === 'd' || e.key === 'D') {
+                    if (!p1Confirmed) {
+                        p1SelIndex = (p1SelIndex + 1) % CONFIG.characters.length;
+                    }
+                }
+                if (e.key === ' ') {
+                    if (!p1Confirmed) {
+                        // Check if taken by P2
+                        if (p2Confirmed && p1SelIndex === p2SelIndex) return;
+                        p1Confirmed = true;
+                    }
+                }
+
+                // P2 Selection Controls
+                if (e.key === 'ArrowLeft') {
+                    if (!p2Confirmed) {
+                        p2SelIndex = (p2SelIndex - 1 + CONFIG.characters.length) % CONFIG.characters.length;
+                    }
+                }
+                if (e.key === 'ArrowRight') {
+                    if (!p2Confirmed) {
+                        p2SelIndex = (p2SelIndex + 1) % CONFIG.characters.length;
+                    }
+                }
+                if (e.key === 'Enter') {
+                    if (!p2Confirmed) {
+                        // Check if taken by P1
+                        if (p1Confirmed && p2SelIndex === p1SelIndex) return;
+                        p2Confirmed = true;
+                    }
+                }
+                return;
+            }
+
+            if (!state.isPlaying) {
+                if (e.code === 'Space') {
+                    // Restart game after game over
+                    location.reload();
+                }
+                return;
+            }
+
+            // P1 Controls (Runner in Round 1, Attacker in Round 2)
+            if (state.round === 1) {
+                // P1 is Runner
+                if (e.key === 'w' || e.key === 'W') {
+                    if (state.jumpCount < 2) {
+                        state.p1Vy = CONFIG.jumpForce;
+                        state.p1Jump = true;
+                        state.jumpCount++;
+
+                        // Spawn explosion on double jump
+                        if (state.jumpCount === 2) {
+                            spawnExplosion(p1Rect.x - 16, state.p1Y - 10);  // Below player
+                        }
+                    } else if (state.p1Y > 40 && state.p1Vy > 0) {
+                        // Fast fall
+                        state.p1Vy = -5;
+                    }
+                }
+                if (e.key === 's' || e.key === 'S') {
+                    state.p1Sneak = true;
+                }
+            } else {
+                // P1 is Attacker
+                if (e.key === 's' || e.key === 'S') {
+                    if (!state.isCharging && state.stamina >= CONFIG.wallBaseCost) {
+                        state.isCharging = true;
+                        state.chargeStart = Date.now();
+                    }
+                }
+                if (e.key === 'w' || e.key === 'W') {
+                    spawnBullet(Date.now());
+                }
+            }
+
+            // P2 Controls (Attacker in Round 1, Runner in Round 2)
+            if (state.round === 1) {
+                // P2 is Attacker
+                if (e.key === 'ArrowDown') {
+                    if (!state.isCharging && state.stamina >= CONFIG.wallBaseCost) {
+                        state.isCharging = true;
+                        state.chargeStart = Date.now();
+                    }
+                }
+                if (e.key === 'ArrowUp') {
+                    spawnBullet(Date.now());
+                }
+            } else {
+                // P2 is Runner
+                if (e.key === 'ArrowUp') {
+                    if (state.jumpCount < 2) {
+                        state.p1Vy = CONFIG.jumpForce;
+                        state.p1Jump = true;
+                        state.jumpCount++;
+
+                        // Spawn explosion on double jump
+                        if (state.jumpCount === 2) {
+                            spawnExplosion(p1Rect.x + 16, state.p1Y - 10);
+                        }
+                    } else if (state.p1Y > 40 && state.p1Vy > 0) {
+                        // Fast fall
+                        state.p1Vy = -5;
+                    }
+                }
+                if (e.key === 'ArrowDown') {
+                    state.p1Sneak = true;
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (state.selectionPhase) return;
+
+            // P1 Charge Release
+            if (state.round === 2 && (e.key === 's' || e.key === 'S')) {
+                if (state.isCharging) {
+                    spawnWall(Date.now());
+                    state.isCharging = false;
+                    state.lastActionTime = Date.now();
+                }
+            }
+
+            // P1 Sneak Release
+            if (state.round === 1 && (e.key === 's' || e.key === 'S')) {
+                state.p1Sneak = false;
+            }
+
+            // P2 Charge Release
+            if (state.round === 1 && e.key === 'ArrowDown') {
+                if (state.isCharging) {
+                    spawnWall(Date.now());
+                    state.isCharging = false;
+                    state.lastActionTime = Date.now();
+                }
+            }
+
+            // P2 Sneak Release
+            if (state.round === 2 && e.key === 'ArrowDown') {
+                state.p1Sneak = false;
+            }
+        });
+
+        initGame();
+    </script>
+</body>
+
+</html>
