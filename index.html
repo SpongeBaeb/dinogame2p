@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Runner vs Attacker - Main Menu</title>
+    <link rel="stylesheet" href="css/game.css">
+    <style>
+        /* 메뉴 전용 스타일 (CSS 파일이 없다면 여기에 포함) */
+        body {
+            background-color: #111; color: white; font-family: 'Consolas', monospace;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; margin: 0;
+        }
+        h1 { font-size: 60px; color: #ffcc00; text-shadow: 4px 4px 0 #ff4444; margin-bottom: 10px; }
+        p { color: #aaa; margin-bottom: 50px; }
+        
+        .menu-btn {
+            width: 400px; padding: 20px; margin: 10px; font-size: 24px;
+            border: none; border-radius: 10px; cursor: pointer;
+            font-family: inherit; font-weight: bold; transition: transform 0.1s;
+        }
+        .menu-btn:hover { transform: scale(1.05); }
+        
+        .btn-local { background: linear-gradient(45deg, #ff9100, #ff4444); color: white; }
+        .btn-online { background: linear-gradient(45deg, #007bff, #00c6ff); color: white; }
+        .footer { position: absolute; bottom: 20px; font-size: 12px; color: #555; }
+    </style>
+</head>
+<body>
+
+    <h1>⚡ RUNNER vs ATTACKER ⚡</h1>
+    <p>Choose Your Battle Mode</p>
+
+    <button class="menu-btn btn-local" onclick="location.href='local.html'">
+        🎮 1 PC / 2 Players (Local)
+        <div style="font-size:14px; font-weight:normal; margin-top:5px;">Play on the same keyboard</div>
+    </button>
+
+    <button class="menu-btn btn-online" onclick="location.href='online.html'">
+        🌐 Online Multiplayer
+        <div style="font-size:14px; font-weight:normal; margin-top:5px;">Play via Wi-Fi / Internet</div>
+    </button>
+
+    <div class="footer">Developed by User & Gemini AI</div>
+
+</body>
+</html>
