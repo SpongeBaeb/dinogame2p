@@ -403,6 +403,11 @@
         <div id="player2" class="pixel-art"></div>
 
         <div id="debug-box"></div>
+        <!-- FPS COUNTER (DELETE LATER) -->
+        <div id="fps-counter"
+            style="position: absolute; top: 5px; right: 5px; color: lime; font-weight: bold; z-index: 100; font-family: monospace;">
+            FPS: 0</div>
+        <!-- END FPS COUNTER -->
 
         <div class="status-indicator" id="charge-indicator">⚠️ CHARGING!</div>
         <div class="status-indicator" id="cooldown-indicator">⏳ COOLDOWN</div>
@@ -432,14 +437,24 @@
                     <label>Stamina Regen Wait: <span id="val-regen">1000</span>ms</label>
                     <input type="range" id="input-regen" min="0" max="5000" value="1000" step="100">
                 </div>
+                <!-- New Sliders -->
+                <div class="slider-container">
+                    <label>Recoil Jump: <span id="val-recoil-jump">5</span></label>
+                    <input type="range" id="input-recoil-jump" min="0" max="20" value="5">
+                </div>
+                <div class="slider-container">
+                    <label>Recoil Lookback: <span id="val-recoil-time">20</span> frames</label>
+                    <input type="range" id="input-recoil-time" min="0" max="60" value="20">
+                </div>
             </div>
         </div>
+    </div>
 
-        <div id="game-over" style="display:none;">
-            <h1 id="winner-msg">GAME OVER</h1>
-            <p>Press SPACE to Restart</p>
-            <button onclick="location.reload()">🔄 Reset All</button>
-        </div>
+    <div id="game-over" style="display:none;">
+        <h1 id="winner-msg">GAME OVER</h1>
+        <p>Press SPACE to Restart</p>
+        <button onclick="location.reload()">🔄 Reset All</button>
+    </div>
     </div>
     <script>
         window.onerror = function (msg, url, line, col, error) {
@@ -482,7 +497,9 @@
             maxCooldown: 1000,
             doubleJumpCooldown: 2000,
             characters: ['mort', 'doux', 'tard', 'vita'],
-            sneakOffset: 6
+            sneakOffset: 6,
+            recoilJumpForce: 5,
+            recoilDuration: 20,
         };
 
         const state = {
@@ -511,6 +528,9 @@
             selectionPhase: true,
             p1Char: 'mort',
             p2Char: 'doux',
+            p2Y: 40,
+            p2Vy: 0,
+            recoilTimer: 0,
             explosions: []
         };
 
@@ -534,6 +554,8 @@
         let loopId = 0;
         let obsId = 0;
         let lastFrameTime = 0;
+        let lastSelTime = 0; // [NEW] Track time for selection animation
+
         const frameDelay = 1000 / 60;
         let groundScrollX = 0;
         let groundSpeed = 3;
@@ -565,21 +587,34 @@
                 CONFIG.regenWait = parseInt(e.target.value);
                 document.getElementById('val-regen').innerText = CONFIG.regenWait;
             });
-
+            document.getElementById('input-recoil-jump').addEventListener('input', (e) => {
+                CONFIG.recoilJumpForce = parseInt(e.target.value);
+                document.getElementById('val-recoil-jump').innerText = CONFIG.recoilJumpForce;
+            });
+            document.getElementById('input-recoil-time').addEventListener('input', (e) => {
+                CONFIG.recoilDuration = parseInt(e.target.value);
+                document.getElementById('val-recoil-time').innerText = CONFIG.recoilDuration;
+            });
             updateSelection();
         }
 
-        function updateSelection() {
+        function updateSelection(timestamp) {
             if (!state.selectionPhase) return;
+
+            // [NEW] Time-based animation logic
+            const now = timestamp || performance.now();
+            if (!lastSelTime) lastSelTime = now;
+            const deltaTime = now - lastSelTime;
+            lastSelTime = now;
 
             const grid = document.getElementById('char-grid');
             grid.innerHTML = '';
 
             // Update Animation
-            selAnimTimer++;
-            if (selAnimTimer > 10) {
-                selAnimTimer = 0;
-                selAnimFrame = (selAnimFrame + 1) % 4; // 4 frames for idle
+            selAnimTimer += deltaTime;
+            if (selAnimTimer > 166) {
+                selAnimTimer -= 166;
+                selAnimFrame = (selAnimFrame + 1) % 4;
             }
 
             CONFIG.characters.forEach((char, index) => {
@@ -645,15 +680,18 @@
         function startRound(roundNum) {
             state.round = roundNum;
             state.isPlaying = true;
+            state.p2Y = 40;
+            state.p2Vy = 0;
+            state.recoilTimer = 0;
             state.score = 0;
             state.scoreAccumulator = 0;
             state.startTime = Date.now();
             state.p1Y = 40;
 
             if (state.round === 1) {
-                p1Rect.x = 40;
+                p1Rect.x = 60;
             } else {
-                p1Rect.x = 686;
+                p1Rect.x = 666;
             }
 
             state.p1Vy = 0;
@@ -690,6 +728,12 @@
                 }
 
                 lastFrameTime = now - (deltaTime % frameDelay);
+
+                // --- FPS COUNTER START (DELETE LATER) ---
+                const fps = Math.round(1000 / deltaTime);
+                const fpsEl = document.getElementById('fps-counter');
+                if (fpsEl) fpsEl.innerText = 'FPS: ' + fps;
+                // --- FPS COUNTER END ---
 
                 if (now - state.startTime >= CONFIG.roundTime) {
                     endRound("TIME UP! SURVIVED!");
@@ -755,7 +799,20 @@
                         state.p1Rot = -state.p1Vy * 2;
                     }
                 }
+                // P2 Physics (Recoil Jump)
+                if (state.p2Y > 40 || state.p2Vy !== 0) {
+                    state.p2Vy -= CONFIG.gravity;
+                    state.p2Y += state.p2Vy;
+                    if (state.p2Y <= 40) {
+                        state.p2Y = 40;
+                        state.p2Vy = 0;
+                    }
+                }
 
+                // Recoil Timer
+                if (state.recoilTimer > 0) {
+                    state.recoilTimer--;
+                }
                 // Animation State
                 let nextAnimState = 'run';
                 if (state.p1Y > 40) {
@@ -919,6 +976,10 @@
 
             state.lastBulletTime = now;
             state.stamina -= CONFIG.bulletCost;
+            // Apply Recoil
+            state.p2Vy = CONFIG.recoilJumpForce;
+            state.recoilTimer = CONFIG.recoilDuration;
+
 
             const spawnX = (state.round === 1) ? 700 : 50;
             const spd = (state.round === 1) ? -CONFIG.bulletSpeed : CONFIG.bulletSpeed;
@@ -983,9 +1044,12 @@
             els.p2.style.backgroundPosition = `-${p2FrameIndex * 64}px 0`;
             const p2SpriteOffset = (64 - 32) / 2; // Same 16px offset
             els.p2.style.left = ((state.round === 1 ? 700 : 50) - p2SpriteOffset) + 'px';
-            els.p2.style.bottom = (40 - p2SpriteOffset) + 'px';
-            // Flip left in round 2
-            els.p2.style.transform = (state.round === 2) ? 'scaleX(-1)' : 'scaleX(1)';
+            els.p2.style.bottom = (state.p2Y - p2SpriteOffset) + 'px';
+
+            // Flip logic
+            let p2Scale = (state.round === 2) ? -1 : 1;
+            if (state.recoilTimer > 0) p2Scale *= -1; // Reverse direction during recoil
+            els.p2.style.transform = `scaleX(${p2Scale})`;
 
             // Render Explosions
             // Render Explosions - using object pooling
@@ -1081,7 +1145,12 @@
             els.coolInd.style.display = (now - state.lastWallTime < CONFIG.wallCooldown) ? 'block' : 'none';
 
             // Ground Scroll
-            groundScrollX = (groundScrollX + groundSpeed) % 800;
+            if (state.round === 1) {
+                groundScrollX = (groundScrollX + groundSpeed) % 800;
+            } else {
+                groundScrollX = (groundScrollX - groundSpeed);
+                if (groundScrollX < 0) groundScrollX += 800;
+            }
             els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
         }
 
