@@ -4,9 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Runner vs Attacker (Local 2P) - Round System</title>
-    <!-- 공통 게임 엔진 -->
-    <script src="js/config.js"></script>
-    <script src="js/game-engine.js"></script>
     <style>
         body {
             display: flex;
@@ -475,6 +472,36 @@
             return false;
         };
 
+        const CONFIG = {
+            gravity: 0.4,
+            jumpForce: 10,
+            maxStamina: 100,
+            regenRate: 5,
+            regenWait: 1000,
+            bulletCost: 20,
+            bulletSpeed: 8,
+            wallBaseCost: 30,
+            wallCostPerFrame: 0.5,
+            wallSpeed: 5,
+            wallCooldown: 500,
+            bulletCooldown: 500,
+            roundTime: 60000,
+            animIntervalStart: 6,
+            animIntervalEnd: 3,
+            runFrames: 6,
+            jumpFrames: 4,
+            fallFrames: 4,
+            minSpeed: 3,
+            maxSpeed: 12,
+            minCooldown: 200,
+            maxCooldown: 1000,
+            doubleJumpCooldown: 2000,
+            characters: ['mort', 'doux', 'tard', 'vita'],
+            sneakOffset: 6,
+            recoilJumpForce: 5,
+            recoilDuration: 20,
+        };
+
         const state = {
             isPlaying: false,
             score: 0,
@@ -629,16 +656,28 @@
 
                 grid.appendChild(card);
             });
+            if (p1Confirmed) {
+                // AI가 P2 캐릭터 자동 선택
+                if (!p2Confirmed) {
+                    let aiChoice = Math.floor(Math.random() * CONFIG.characters.length);
+                    while (aiChoice === p1SelIndex) {
+                        aiChoice = Math.floor(Math.random() * CONFIG.characters.length);
+                    }
+                    p2SelIndex = aiChoice;
+                    p2Confirmed = true;
+                }
 
-            if (p1Confirmed && p2Confirmed) {
-                setTimeout(() => {
-                    state.selectionPhase = false;
-                    state.p1Char = CONFIG.characters[p1SelIndex];
-                    state.p2Char = CONFIG.characters[p2SelIndex];
-                    document.getElementById('char-select').style.display = 'none';
-                    startGame();
-                }, 500);
-                return;
+                // 둘 다 확인되면 게임 시작
+                if (p2Confirmed) {
+                    setTimeout(() => {
+                        state.selectionPhase = false;
+                        state.p1Char = CONFIG.characters[p1SelIndex];
+                        state.p2Char = CONFIG.characters[p2SelIndex];
+                        document.getElementById('char-select').style.display = 'none';
+                        startGame();
+                    }, 500);
+                    return;
+                }
             }
 
             requestAnimationFrame(updateSelection);
@@ -888,6 +927,129 @@
                     if (o.x < -100 || o.x > 900) state.obs.splice(i, 1);
                 }
 
+                // AI Runner (Round 2) - 개선된 버전
+                if (state.round === 2) {
+                    // AI Runner (Round 2) - 개선된 버전
+                    if (state.round === 2) {
+                        // 다가오는 장애물 감지 (감지 거리 증가)
+                        let obstacles = [];
+
+                        for (let o of state.obs) {
+                            if (o.x < p1Rect.x && o.x + o.w > p1Rect.x - 250) {  // 감지 거리 증가
+                                const dist = p1Rect.x - (o.x + o.w);
+                                obstacles.push({ obs: o, dist: dist });
+                            }
+                        }
+
+                        // 거리순으로 정렬
+                        obstacles.sort((a, b) => a.dist - b.dist);
+
+                        if (obstacles.length > 0) {
+                            const nearest = obstacles[0];
+                            const obs = nearest.obs;
+                            const dist = nearest.dist;
+
+                            // 위협 레벨 계산
+                            const isThreat = dist >= 0 && dist < 200;
+
+                            if (isThreat) {
+                                // Bullet 처리 - 높이에 따라 다른 전략
+                                if (obs.type === 'bullet') {
+                                    if (obs.y < 60) {
+                                        // 낮은 bullet -> 점프
+                                        if (state.p1Y <= 40 && state.jumpCount === 0) {
+                                            state.p1Vy = CONFIG.jumpForce;
+                                            state.p1Jump = true;
+                                            state.jumpCount++;
+                                        }
+                                    } else if (obs.y >= 60 && obs.y < 90) {
+                                        // 중간 높이 bullet -> 슬라이드
+                                        if (state.p1Y <= 40 && !state.p1Sneak) {
+                                            state.p1Sneak = true;
+                                            setTimeout(() => { state.p1Sneak = false; }, 400);
+                                        }
+                                    }
+                                }
+                                // Wall 처리 - 높이에 따른 전략
+                                else if (obs.type === 'wall') {
+                                    if (obs.h <= 30) {
+                                        // 작은 벽 -> 일반 점프
+                                        if (state.p1Y <= 40 && state.jumpCount === 0) {
+                                            state.p1Vy = CONFIG.jumpForce;
+                                            state.p1Jump = true;
+                                            state.jumpCount++;
+                                        }
+                                    } else if (obs.h > 30 && obs.h <= 60) {
+                                        // 중간 벽 -> 더블 점프 사용
+                                        if (state.p1Y <= 40 && state.jumpCount < 2) {
+                                            state.p1Vy = CONFIG.jumpForce;
+                                            state.p1Jump = true;
+                                            state.jumpCount++;
+
+                                            // 첫 점프 후 바로 더블 점프
+                                            setTimeout(() => {
+                                                if (state.jumpCount < 2 && state.p1Y > 40) {
+                                                    state.p1Vy = CONFIG.jumpForce;
+                                                    state.jumpCount++;
+                                                    spawnExplosion(p1Rect.x + 16, state.p1Y - 10);
+                                                }
+                                            }, 150);
+                                        }
+                                    } else {
+                                        // 높은 벽 -> 슬라이드
+                                        if (state.p1Y <= 40 && !state.p1Sneak) {
+                                            state.p1Sneak = true;
+                                            setTimeout(() => { state.p1Sneak = false; }, 400);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 두 개 이상의 장애물이 연속으로 오는 경우 대비
+                            if (obstacles.length >= 2) {
+                                const second = obstacles[1];
+                                const gap = second.dist - nearest.dist;
+
+                                // 장애물 간격이 좁으면 더블 점프 준비
+                                if (gap < 100 && state.p1Y > 40 && state.jumpCount === 1) {
+                                    setTimeout(() => {
+                                        if (state.jumpCount < 2) {
+                                            state.p1Vy = CONFIG.jumpForce;
+                                            state.jumpCount++;
+                                            spawnExplosion(p1Rect.x + 16, state.p1Y - 10);
+                                        }
+                                    }, 100);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // AI Attacker (Round 1)  
+                if (state.round === 1) {
+                    // 랜덤하게 공격
+                    if (Math.random() < 0.02) {  // 2% 확률로 매 프레임
+                        if (Math.random() < 0.6) {
+                            // 60% bullet
+                            spawnBullet(now);
+                        } else {
+                            // 40% wall
+                            if (!state.isCharging && state.stamina >= CONFIG.wallBaseCost) {
+                                state.isCharging = true;
+                                state.chargeStart = now;
+                                // 랜덤 시간 후 발사
+                                setTimeout(() => {
+                                    if (state.isCharging) {
+                                        spawnWall(Date.now());
+                                        state.isCharging = false;
+                                        state.lastActionTime = Date.now();
+                                    }
+                                }, Math.random() * 500 + 200);
+                            }
+                        }
+                    }
+                }
+
                 render(now);
                 loopId = requestAnimationFrame(gameLoop);
             } catch (e) {
@@ -1024,7 +1186,6 @@
             if (state.recoilTimer > 0) p2Scale *= -1; // Reverse direction during recoil
             els.p2.style.transform = `scaleX(${p2Scale})`;
 
-            // Render Explosions
             // Render Explosions - using object pooling
             state.explosions.forEach((exp, index) => {
                 let expDiv = explosionPool[index];
@@ -1078,9 +1239,8 @@
                     const offsetX = (renderWidth - o.w) / 2;
                     const offsetY = (renderHeight - o.h) / 2;
 
-                    div.style.transform = `translate3d(${o.x - offsetX}px, ${-o.y - offsetY}px, 0) ${state.round === 1 ? 'scaleX(-1)' : ''}`;
-                    div.style.left = '0';
-                    div.style.bottom = '0';
+                    div.style.left = (o.x - offsetX) + 'px';
+                    div.style.bottom = (o.y - offsetY) + 'px';
                     div.style.width = renderWidth + 'px';
                     div.style.height = renderHeight + 'px';
 
@@ -1091,6 +1251,8 @@
                     div.style.backgroundPosition = `-${o.animFrame * 96}px 0`;
                     div.style.transform = (state.round === 1) ? 'scaleX(-1)' : 'scaleX(1)';
 
+                    // Collision box visualization - REMOVE THIS FOR BETTER PERFORMANCE
+                    // div.innerHTML = `...`;  // Comment this out or remove it
                 } else {
                     // Normal rendering for walls
                     div.style.left = o.x + 'px';
@@ -1155,25 +1317,6 @@
                         p1Confirmed = true;
                     }
                 }
-
-                // P2 Selection Controls
-                if (e.key === 'ArrowLeft') {
-                    if (!p2Confirmed) {
-                        p2SelIndex = (p2SelIndex - 1 + CONFIG.characters.length) % CONFIG.characters.length;
-                    }
-                }
-                if (e.key === 'ArrowRight') {
-                    if (!p2Confirmed) {
-                        p2SelIndex = (p2SelIndex + 1) % CONFIG.characters.length;
-                    }
-                }
-                if (e.key === 'Enter') {
-                    if (!p2Confirmed) {
-                        // Check if taken by P1
-                        if (p1Confirmed && p2SelIndex === p1SelIndex) return;
-                        p2Confirmed = true;
-                    }
-                }
                 return;
             }
 
@@ -1219,39 +1362,6 @@
                 }
             }
 
-            // P2 Controls (Attacker in Round 1, Runner in Round 2)
-            if (state.round === 1) {
-                // P2 is Attacker
-                if (e.key === 'ArrowDown') {
-                    if (!state.isCharging && state.stamina >= CONFIG.wallBaseCost) {
-                        state.isCharging = true;
-                        state.chargeStart = Date.now();
-                    }
-                }
-                if (e.key === 'ArrowUp') {
-                    spawnBullet(Date.now());
-                }
-            } else {
-                // P2 is Runner
-                if (e.key === 'ArrowUp') {
-                    if (state.jumpCount < 2) {
-                        state.p1Vy = CONFIG.jumpForce;
-                        state.p1Jump = true;
-                        state.jumpCount++;
-
-                        // Spawn explosion on double jump
-                        if (state.jumpCount === 2) {
-                            spawnExplosion(p1Rect.x + 16, state.p1Y - 10);
-                        }
-                    } else if (state.p1Y > 40 && state.p1Vy > 0) {
-                        // Fast fall
-                        state.p1Vy = -5;
-                    }
-                }
-                if (e.key === 'ArrowDown') {
-                    state.p1Sneak = true;
-                }
-            }
         });
 
         window.addEventListener('keyup', (e) => {
@@ -1271,19 +1381,6 @@
                 state.p1Sneak = false;
             }
 
-            // P2 Charge Release
-            if (state.round === 1 && e.key === 'ArrowDown') {
-                if (state.isCharging) {
-                    spawnWall(Date.now());
-                    state.isCharging = false;
-                    state.lastActionTime = Date.now();
-                }
-            }
-
-            // P2 Sneak Release
-            if (state.round === 2 && e.key === 'ArrowDown') {
-                state.p1Sneak = false;
-            }
         });
 
         initGame();

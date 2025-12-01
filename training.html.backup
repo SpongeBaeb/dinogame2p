@@ -4,8 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <title>AI Training - Round 1 Runner</title>
-    <script src="js/config.js"></script>
-    <script src="js/game-engine.js"></script>
     <style>
         * {
             margin: 0;
@@ -280,6 +278,28 @@
     </div>
 
     <script>
+        const CONFIG = {
+            gravity: 0.4,
+            jumpForce: 10,
+            maxStamina: 100,
+            regenRate: 5,
+            regenWait: 1000,
+            bulletCost: 20,
+            bulletSpeed: 8,
+            wallBaseCost: 30,
+            wallCostPerFrame: 0.5,
+            wallSpeed: 5,
+            wallCooldown: 500,
+            bulletCooldown: 500,
+            roundTime: 60000,
+            minSpeed: 3,
+            maxSpeed: 12,
+            minCooldown: 200,
+            maxCooldown: 1000,
+            sneakOffset: 6,
+            recoilJumpForce: 5,
+            recoilDuration: 20,
+        };
 
         const QLearning = {
             qTable: {},

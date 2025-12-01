@@ -4,9 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Runner vs Attacker (Local 2P) - Round System</title>
-    <!-- 공통 게임 엔진 -->
-    <script src="js/config.js"></script>
-    <script src="js/game-engine.js"></script>
     <style>
         body {
             display: flex;
@@ -473,6 +470,36 @@
             div.innerText = 'ERROR: ' + msg + ' at ' + line + ':' + col;
             document.body.appendChild(div);
             return false;
+        };
+
+        const CONFIG = {
+            gravity: 0.4,
+            jumpForce: 10,
+            maxStamina: 100,
+            regenRate: 5,
+            regenWait: 1000,
+            bulletCost: 20,
+            bulletSpeed: 8,
+            wallBaseCost: 30,
+            wallCostPerFrame: 0.5,
+            wallSpeed: 5,
+            wallCooldown: 500,
+            bulletCooldown: 500,
+            roundTime: 60000,
+            animIntervalStart: 6,
+            animIntervalEnd: 3,
+            runFrames: 6,
+            jumpFrames: 4,
+            fallFrames: 4,
+            minSpeed: 3,
+            maxSpeed: 12,
+            minCooldown: 200,
+            maxCooldown: 1000,
+            doubleJumpCooldown: 2000,
+            characters: ['mort', 'doux', 'tard', 'vita'],
+            sneakOffset: 6,
+            recoilJumpForce: 5,
+            recoilDuration: 20,
         };
 
         const state = {
@@ -1078,9 +1105,8 @@
                     const offsetX = (renderWidth - o.w) / 2;
                     const offsetY = (renderHeight - o.h) / 2;
 
-                    div.style.transform = `translate3d(${o.x - offsetX}px, ${-o.y - offsetY}px, 0) ${state.round === 1 ? 'scaleX(-1)' : ''}`;
-                    div.style.left = '0';
-                    div.style.bottom = '0';
+                    div.style.left = (o.x - offsetX) + 'px';
+                    div.style.bottom = (o.y - offsetY) + 'px';
                     div.style.width = renderWidth + 'px';
                     div.style.height = renderHeight + 'px';
 

@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Runner vs Attacker (Local 2P) - Round System</title>
+    <!-- 공통 게임 엔진 -->
+    <script src="js/config.js"></script>
+    <script src="js/game-engine.js"></script>
     <style>
         body {
             display: flex;
@@ -94,13 +97,19 @@
         }
 
         #stamina-box {
-            width: 100%;
-            height: 15px;
+            position: absolute;
+            /* relative → absolute */
+            width: 80px;
+            /* 100% → 80px (고정 크기) */
+            height: 12px;
+            /* 15px → 12px (작게) */
             background: #333;
             border: 2px solid #000;
-            position: relative;
             border-radius: 10px;
             overflow: hidden;
+            z-index: 25;
+            /* 플레이어 위에 표시 */
+            /* 위치는 JavaScript에서 동적 설정 */
         }
 
         #stamina-bar {
@@ -134,17 +143,10 @@
             z-index: 30;
         }
 
-        #charge-indicator {
-            color: red;
-            animation: shake 0.1s infinite;
+        .charging {
+            animation: player-shake 0.1s infinite !important;
         }
 
-        #cooldown-indicator {
-            color: #555;
-            font-size: 12px;
-            bottom: 75px;
-            right: 50px;
-        }
 
         @keyframes shake {
             0% {
@@ -198,7 +200,13 @@
 
         .obstacle {
             position: absolute;
+            bottom: 0;
+            left: 0;
             z-index: 11;
+            will-change: transform;
+            /* 👇 추가 */
+            backface-visibility: hidden;
+            perspective: 1000px;
         }
 
         .wall {
@@ -384,10 +392,6 @@
             <div id="p1-status">
                 <div style="color:#007bff; font-weight:bold; margin-bottom:5px;">P1</div>
                 <div class="large-score">0</div>
-                <div id="stamina-box">
-                    <div id="stamina-bar"></div>
-                    <div id="stamina-text">STAMINA</div>
-                </div>
             </div>
             <div id="timer">60</div>
             <div id="p2-status">
@@ -398,7 +402,10 @@
 
         <div id="ground"></div>
         <div id="obstacles-layer"></div>
-
+        <div id="stamina-box">
+            <div id="stamina-bar"></div>
+            <div id="stamina-text">100</div>
+        </div>
         <div id="player1" class="pixel-art"></div>
         <div id="player2" class="pixel-art"></div>
 
@@ -472,36 +479,6 @@
             return false;
         };
 
-        const CONFIG = {
-            gravity: 0.4,
-            jumpForce: 10,
-            maxStamina: 100,
-            regenRate: 5,
-            regenWait: 1000,
-            bulletCost: 20,
-            bulletSpeed: 8,
-            wallBaseCost: 30,
-            wallCostPerFrame: 0.5,
-            wallSpeed: 5,
-            wallCooldown: 500,
-            bulletCooldown: 500,
-            roundTime: 60000,
-            animIntervalStart: 6,
-            animIntervalEnd: 3,
-            runFrames: 6,
-            jumpFrames: 4,
-            fallFrames: 4,
-            minSpeed: 3,
-            maxSpeed: 12,
-            minCooldown: 200,
-            maxCooldown: 1000,
-            doubleJumpCooldown: 2000,
-            characters: ['mort', 'doux', 'tard', 'vita'],
-            sneakOffset: 6,
-            recoilJumpForce: 5,
-            recoilDuration: 20,
-        };
-
         const state = {
             isPlaying: false,
             score: 0,
@@ -535,18 +512,19 @@
         };
 
         const els = {
-            game: document.getElementById('game-container'),
+            game: document.getElementById('game'),
+            ground: document.getElementById('ground'),
+            timer: document.getElementById('timer'),
             p1: document.getElementById('player1'),
             p2: document.getElementById('player2'),
-            ground: document.getElementById('ground'),
             obsLayer: document.getElementById('obstacles-layer'),
-            timer: document.getElementById('timer'),
-            p1Status: document.getElementById('p1-status'),
-            p2Status: document.getElementById('p2-status'),
             chargeInd: document.getElementById('charge-indicator'),
             coolInd: document.getElementById('cooldown-indicator'),
-            bombInd: document.getElementById('bomb-indicator'),
-            start: document.getElementById('start-screen'),
+            // 👇 추가
+            p1Score: document.querySelector('#p1-status .large-score'),
+            p2Score: document.querySelector('#p2-status .large-score'),
+            staminaBar: document.getElementById('stamina-bar'),
+            staminaText: document.getElementById('stamina-text'),
             over: document.getElementById('game-over'),
             winMsg: document.getElementById('winner-msg')
         };
@@ -570,10 +548,26 @@
         let wallTileSize = 40;
         let obstaclePool = [];  // Add this line - pool of reusable DOM elements
         let explosionPool = [];
+        let frameCount = 0;
 
         const p1Rect = { x: 40, y: 40, w: 32, h: 32 }; // 32x32px Hitbox
 
         function initGame() {
+            const images = [
+                'assets/mort.png',
+                'assets/doux.png',
+                'assets/tard.png',
+                'assets/vita.png',
+                'assets/fireball.png',
+                'assets/wall.png',
+                'assets/ground.png',
+                'assets/explosion.png'
+            ];
+
+            images.forEach(src => {
+                const img = new Image();
+                img.src = src;
+            });
             // Initialize Sliders
             document.getElementById('input-ground-speed').addEventListener('input', (e) => {
                 groundSpeed = parseInt(e.target.value);
@@ -894,16 +888,39 @@
                 debugBox.style.width = p1Rect.w + 'px';
                 debugBox.style.height = p1H + 'px';
 
+                // 장애물 최대 12개 유지
+                if (state.obs.length > 12) {
+                    state.obs.shift();  // 가장 오래된 장애물 제거
+                }
+
                 // Obstacle Logic
                 for (let i = state.obs.length - 1; i >= 0; i--) {
                     let o = state.obs[i];
                     const dir = (o.spd > 0) ? 1 : -1;
                     o.spd = (o.type === 'bullet') ? dir * CONFIG.bulletSpeed : dir * CONFIG.wallSpeed;
                     o.x += o.spd;
+                    if (o.type === 'bullet' && frameCount % 4 === 0) {
+                        o.animFrame = (o.animFrame + 1) % 8;
+                    }
 
-                    // Collision Check
+                    // Collision Check - 거리 체크 먼저
+                    const distance = Math.abs(o.x - p1Rect.x);
+                    if (distance > 100) {
+                        // 너무 멀면 충돌 체크 스킵
+                        if (!o.passed && o.x + o.w < p1Rect.x) {
+                            o.passed = true;
+                            state.score += 100;
+                        }
+                        if (o.x < -100 || o.x > 900) {
+                            state.obs.splice(i, 1);
+                        }
+                        continue;  // 다음 장애물로
+                    }
+
+                    // 가까울 때만 정확한 충돌 감지
                     if (p1Rect.x < o.x + o.w && p1Rect.x + p1Rect.w > o.x &&
                         p1Rect.y < o.y + o.h && p1Rect.y + p1H > o.y) {
+                        // 충돌!
                         endRound("HIT OBSTACLE!");
                         return;
                     }
@@ -928,102 +945,100 @@
                 }
 
                 // AI Runner (Round 2) - 개선된 버전
-                if (state.round === 2) {
-                    // AI Runner (Round 2) - 개선된 버전
-                    if (state.round === 2) {
-                        // 다가오는 장애물 감지 (감지 거리 증가)
-                        let obstacles = [];
+                if (state.round === 2 && frameCount % 3 === 0) {
+                    // 다가오는 장애물 감지 (감지 거리 증가)
+                    let obstacles = [];
 
-                        for (let o of state.obs) {
-                            if (o.x < p1Rect.x && o.x + o.w > p1Rect.x - 250) {  // 감지 거리 증가
-                                const dist = p1Rect.x - (o.x + o.w);
-                                obstacles.push({ obs: o, dist: dist });
+                    for (let o of state.obs) {
+                        if (o.x < p1Rect.x && o.x + o.w > p1Rect.x - 250) {  // 감지 거리 증가
+                            const dist = p1Rect.x - (o.x + o.w);
+                            obstacles.push({ obs: o, dist: dist });
+                        }
+                    }
+
+                    // 거리순으로 정렬
+                    obstacles.sort((a, b) => a.dist - b.dist);
+
+                    if (obstacles.length > 0) {
+                        const nearest = obstacles[0];
+                        const obs = nearest.obs;
+                        const dist = nearest.dist;
+
+                        // 위협 레벨 계산
+                        const isThreat = dist >= 0 && dist < 200;
+
+                        if (isThreat) {
+                            // Bullet 처리 - 높이에 따라 다른 전략
+                            if (obs.type === 'bullet') {
+                                if (obs.y < 60) {
+                                    // 낮은 bullet -> 점프
+                                    if (state.p1Y <= 40 && state.jumpCount === 0) {
+                                        state.p1Vy = CONFIG.jumpForce;
+                                        state.p1Jump = true;
+                                        state.jumpCount++;
+                                    }
+                                } else if (obs.y >= 60 && obs.y < 90) {
+                                    // 중간 높이 bullet -> 슬라이드
+                                    if (state.p1Y <= 40 && !state.p1Sneak) {
+                                        state.p1Sneak = true;
+                                        setTimeout(() => { state.p1Sneak = false; }, 400);
+                                    }
+                                }
+                            }
+                            // Wall 처리 - 높이에 따른 전략
+                            else if (obs.type === 'wall') {
+                                if (obs.h <= 30) {
+                                    // 작은 벽 -> 일반 점프
+                                    if (state.p1Y <= 40 && state.jumpCount === 0) {
+                                        state.p1Vy = CONFIG.jumpForce;
+                                        state.p1Jump = true;
+                                        state.jumpCount++;
+                                    }
+                                } else if (obs.h > 30 && obs.h <= 60) {
+                                    // 중간 벽 -> 더블 점프 사용
+                                    if (state.p1Y <= 40 && state.jumpCount < 2) {
+                                        state.p1Vy = CONFIG.jumpForce;
+                                        state.p1Jump = true;
+                                        state.jumpCount++;
+
+                                        // 첫 점프 후 바로 더블 점프
+                                        setTimeout(() => {
+                                            if (state.jumpCount < 2 && state.p1Y > 40) {
+                                                state.p1Vy = CONFIG.jumpForce;
+                                                state.jumpCount++;
+                                                spawnExplosion(p1Rect.x + 16, state.p1Y - 10);
+                                            }
+                                        }, 150);
+                                    }
+                                } else {
+                                    // 높은 벽 -> 슬라이드
+                                    if (state.p1Y <= 40 && !state.p1Sneak) {
+                                        state.p1Sneak = true;
+                                        setTimeout(() => { state.p1Sneak = false; }, 400);
+                                    }
+                                }
                             }
                         }
 
-                        // 거리순으로 정렬
-                        obstacles.sort((a, b) => a.dist - b.dist);
+                        // 두 개 이상의 장애물이 연속으로 오는 경우 대비
+                        if (obstacles.length >= 2) {
+                            const second = obstacles[1];
+                            const gap = second.dist - nearest.dist;
 
-                        if (obstacles.length > 0) {
-                            const nearest = obstacles[0];
-                            const obs = nearest.obs;
-                            const dist = nearest.dist;
-
-                            // 위협 레벨 계산
-                            const isThreat = dist >= 0 && dist < 200;
-
-                            if (isThreat) {
-                                // Bullet 처리 - 높이에 따라 다른 전략
-                                if (obs.type === 'bullet') {
-                                    if (obs.y < 60) {
-                                        // 낮은 bullet -> 점프
-                                        if (state.p1Y <= 40 && state.jumpCount === 0) {
-                                            state.p1Vy = CONFIG.jumpForce;
-                                            state.p1Jump = true;
-                                            state.jumpCount++;
-                                        }
-                                    } else if (obs.y >= 60 && obs.y < 90) {
-                                        // 중간 높이 bullet -> 슬라이드
-                                        if (state.p1Y <= 40 && !state.p1Sneak) {
-                                            state.p1Sneak = true;
-                                            setTimeout(() => { state.p1Sneak = false; }, 400);
-                                        }
+                            // 장애물 간격이 좁으면 더블 점프 준비
+                            if (gap < 100 && state.p1Y > 40 && state.jumpCount === 1) {
+                                setTimeout(() => {
+                                    if (state.jumpCount < 2) {
+                                        state.p1Vy = CONFIG.jumpForce;
+                                        state.jumpCount++;
+                                        spawnExplosion(p1Rect.x + 16, state.p1Y - 10);
                                     }
-                                }
-                                // Wall 처리 - 높이에 따른 전략
-                                else if (obs.type === 'wall') {
-                                    if (obs.h <= 30) {
-                                        // 작은 벽 -> 일반 점프
-                                        if (state.p1Y <= 40 && state.jumpCount === 0) {
-                                            state.p1Vy = CONFIG.jumpForce;
-                                            state.p1Jump = true;
-                                            state.jumpCount++;
-                                        }
-                                    } else if (obs.h > 30 && obs.h <= 60) {
-                                        // 중간 벽 -> 더블 점프 사용
-                                        if (state.p1Y <= 40 && state.jumpCount < 2) {
-                                            state.p1Vy = CONFIG.jumpForce;
-                                            state.p1Jump = true;
-                                            state.jumpCount++;
-
-                                            // 첫 점프 후 바로 더블 점프
-                                            setTimeout(() => {
-                                                if (state.jumpCount < 2 && state.p1Y > 40) {
-                                                    state.p1Vy = CONFIG.jumpForce;
-                                                    state.jumpCount++;
-                                                    spawnExplosion(p1Rect.x + 16, state.p1Y - 10);
-                                                }
-                                            }, 150);
-                                        }
-                                    } else {
-                                        // 높은 벽 -> 슬라이드
-                                        if (state.p1Y <= 40 && !state.p1Sneak) {
-                                            state.p1Sneak = true;
-                                            setTimeout(() => { state.p1Sneak = false; }, 400);
-                                        }
-                                    }
-                                }
-                            }
-
-                            // 두 개 이상의 장애물이 연속으로 오는 경우 대비
-                            if (obstacles.length >= 2) {
-                                const second = obstacles[1];
-                                const gap = second.dist - nearest.dist;
-
-                                // 장애물 간격이 좁으면 더블 점프 준비
-                                if (gap < 100 && state.p1Y > 40 && state.jumpCount === 1) {
-                                    setTimeout(() => {
-                                        if (state.jumpCount < 2) {
-                                            state.p1Vy = CONFIG.jumpForce;
-                                            state.jumpCount++;
-                                            spawnExplosion(p1Rect.x + 16, state.p1Y - 10);
-                                        }
-                                    }, 100);
-                                }
+                                }, 100);
                             }
                         }
                     }
                 }
+
 
                 // AI Attacker (Round 1)  
                 if (state.round === 1) {
@@ -1171,7 +1186,6 @@
             // Flip left in round 2, rotate for jump
             const flipX = (state.round === 2) ? 'scaleX(-1)' : 'scaleX(1)';
             els.p1.style.transform = `${flipX} rotate(${state.p1Rot}deg)`;
-
             // Render Player 2 (Both players running)
             const p2CharName = (state.round === 1) ? state.p2Char : state.p1Char;
             els.p2.style.backgroundImage = `url('assets/${p2CharName}.png')`;
@@ -1180,6 +1194,7 @@
             const p2SpriteOffset = (64 - 32) / 2; // Same 16px offset
             els.p2.style.left = ((state.round === 1 ? 700 : 50) - p2SpriteOffset) + 'px';
             els.p2.style.bottom = (state.p2Y - p2SpriteOffset) + 'px';
+
 
             // Flip logic
             let p2Scale = (state.round === 2) ? -1 : 1;
@@ -1221,6 +1236,14 @@
 
             // Render Obstacles - using object pooling for performance
             state.obs.forEach((o, index) => {
+                // 👇 화면 밖이면 완전히 스킵
+                if (o.x < -150 || o.x > 950) {
+                    if (obstaclePool[index]) {
+                        obstaclePool[index].style.display = 'none';
+                    }
+                    return;
+                }
+
                 // Reuse existing div or create new one
                 let div = obstaclePool[index];
                 if (!div) {
@@ -1255,15 +1278,15 @@
                     // div.innerHTML = `...`;  // Comment this out or remove it
                 } else {
                     // Normal rendering for walls
-                    div.style.left = o.x + 'px';
-                    div.style.bottom = o.y + 'px';
+                    div.style.transform = `translate3d(${o.x}px, ${-o.y}px, 0)`;
+                    div.style.left = '0';
+                    div.style.bottom = '0';
                     div.style.width = o.w + 'px';
                     div.style.height = o.h + 'px';
                     div.style.backgroundImage = "url('assets/wall.png')";
                     div.style.backgroundSize = '20px auto';
                     div.style.backgroundRepeat = 'repeat-y';
                     div.style.backgroundPosition = 'center bottom';
-                    div.style.transform = 'none';
                 }
             });
 
@@ -1272,28 +1295,45 @@
                 obstaclePool[i].style.display = 'none';
             }
 
-            // UI Updates
-            els.timer.innerText = Math.ceil((CONFIG.roundTime - (now - state.startTime)) / 1000);
-            if (parseInt(els.timer.innerText) <= 10) els.timer.classList.add('warning');
-            else els.timer.classList.remove('warning');
+            // UI Updates - Only every 6 frames (~10Hz)
+            frameCount++;
+            if (frameCount % 6 === 0) {
+                els.timer.innerText = Math.ceil((CONFIG.roundTime - (now - state.startTime)) / 1000);
+                if (parseInt(els.timer.innerText) <= 10) els.timer.classList.add('warning');
+                else els.timer.classList.remove('warning');
 
-            document.querySelector('#p1-status .large-score').innerText = (state.round === 1) ? state.score : state.scores.p1;
-            document.querySelector('#p2-status .large-score').innerText = (state.round === 2) ? state.score : state.scores.p2;
-
-            document.getElementById('stamina-bar').style.width = state.stamina + '%';
-            document.getElementById('stamina-text').innerText = Math.floor(state.stamina) + '%';
-
-            els.chargeInd.style.display = state.isCharging ? 'block' : 'none';
-            els.coolInd.style.display = (now - state.lastWallTime < CONFIG.wallCooldown) ? 'block' : 'none';
+                // 개선
+                els.p1Score.innerText = (state.round === 1) ? state.score : state.scores.p1;
+                els.p2Score.innerText = (state.round === 2) ? state.score : state.scores.p2;
+                els.staminaBar.style.width = state.stamina + '%';
+                els.staminaText.innerText = Math.floor(state.stamina) + '%';
+            }
 
             // Ground Scroll
             if (state.round === 1) {
                 groundScrollX = (groundScrollX + groundSpeed) % 800;
             } else {
-                groundScrollX = (groundScrollX - groundSpeed);
-                if (groundScrollX < 0) groundScrollX += 800;
+                groundScrollX = (groundScrollX - groundSpeed + 800) % 800;
             }
             els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
+
+            // 👇 스태미나 바 위치 업데이트 (공격자 위)
+            const attacker = state.round === 1 ? els.p2 : els.p1;
+            const attackerX = state.round === 1 ? 684 : 40;
+            const attackerY = state.round === 1 ? state.p2Y : state.p1Y;
+
+            // 👇 스태미나 바 위치 업데이트 (공격자를 따라다님)
+            const staminaBox = document.getElementById('stamina-box');
+
+            if (state.round === 1) {
+                // 라운드 1: P2 위
+                staminaBox.style.left = '676px';  // P2 X 위치
+                staminaBox.style.bottom = (state.p2Y + 80) + 'px';
+            } else {
+                // 라운드 2: P1 위
+                staminaBox.style.left = '32px';  // P1 X 위치
+                staminaBox.style.bottom = (state.p2Y + 80) + 'px';
+            }
         }
 
         // Input Handling
