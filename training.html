@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>AI Training - Round 1 Runner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #1a1a1a;
+            font-family: 'Consolas', monospace;
+            color: white;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .game-section {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #game-container {
+            width: 800px;
+            height: 300px;
+            border: 4px solid #666;
+            background-color: #dcdcdc;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+        }
+
+        .control-section {
+            width: 320px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #444;
+            border-radius: 10px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        h2 {
+            color: #ffcc00;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 20px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .stat-label {
+            color: #aaa;
+            font-size: 13px;
+        }
+
+        .stat-value {
+            color: #0f0;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        #progress-bar {
+            width: 100%;
+            height: 25px;
+            background: #333;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 15px 0;
+            border: 2px solid #555;
+        }
+
+        #progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .controls {
+            margin-top: 20px;
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .control-btn {
+            padding: 12px;
+            font-size: 13px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-stop {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-reset {
+            background: #ff9800;
+            color: white;
+        }
+
+        .btn-save {
+            background: #2196F3;
+            color: white;
+        }
+
+        .checkbox-wrapper {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        .checkbox-wrapper label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .checkbox-wrapper input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+
+        /* 게임 요소 스타일 */
+        .pixel-art {
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        #ground {
+            width: 100%;
+            height: 45px;
+            background-image: url('assets/ground.png');
+            background-size: auto 45px;
+            background-repeat: repeat-x;
+            position: absolute;
+            bottom: 5px;
+            left: 0;
+            z-index: 10;
+        }
+
+        #player1,
+        #player2 {
+            position: absolute;
+            width: 64px;
+            height: 64px;
+            background-repeat: no-repeat;
+            background-size: auto 64px;
+            z-index: 15;
+        }
+
+        .obstacle {
+            position: absolute;
+            z-index: 11;
+        }
+
+        .hitbox-visual {
+            border: 2px solid lime !important;
+            background: rgba(0, 255, 0, 0.2) !important;
+        }
+
+        .player-hitbox {
+            position: absolute;
+            border: 2px solid cyan;
+            background: rgba(0, 255, 255, 0.2);
+            z-index: 20;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- 게임 화면 영역 -->
+        <div class="game-section">
+            <div id="game-container">
+                <div id="ground"></div>
+                <div id="obstacles-layer"></div>
+                <div id="player1" class="pixel-art"></div>
+                <div id="player2" class="pixel-art"></div>
+            </div>
+        </div>
+
+        <!-- 컨트롤 패널 영역 -->
+        <div class="control-section">
+            <h2>🧠 AI 훈련 센터</h2>
+
+            <div class="stat-row">
+                <span class="stat-label">에피소드</span>
+                <span class="stat-value" id="episode">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">현재 점수</span>
+                <span class="stat-value" id="current-score">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">평균 점수</span>
+                <span class="stat-value" id="avg-score">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">최고 점수</span>
+                <span class="stat-value" id="best-score">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Epsilon (탐험률)</span>
+                <span class="stat-value" id="epsilon">0.200</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">학습 상태 수</span>
+                <span class="stat-value" id="state-count">0</span>
+            </div>
+
+            <div id="progress-bar">
+                <div id="progress-fill"></div>
+            </div>
+
+            <div class="controls">
+                <div class="btn-group">
+                    <button class="control-btn btn-start" onclick="startTraining()">▶️ 훈련 시작</button>
+                    <button class="control-btn btn-stop" onclick="stopTraining()">⏸️ 일시정지</button>
+                    <button class="control-btn btn-reset" onclick="resetAI()">🔄 초기화</button>
+                    <button class="control-btn btn-save" onclick="saveAI()">💾 저장</button>
+                </div>
+
+                <div class="checkbox-wrapper">
+                    <label>
+                        <input type="checkbox" id="speed-mode" onchange="toggleSpeedMode()">
+                        <span>⚡ 고속 훈련 모드 (10배속)</span>
+                    </label>
+                    <label>
+                        <input type="checkbox" id="hitbox-mode" onchange="toggleHitboxMode()">
+                        <span>🎯 히트박스 표시</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            gravity: 0.4,
+            jumpForce: 10,
+            maxStamina: 100,
+            regenRate: 5,
+            regenWait: 1000,
+            bulletCost: 20,
+            bulletSpeed: 8,
+            wallBaseCost: 30,
+            wallCostPerFrame: 0.5,
+            wallSpeed: 5,
+            wallCooldown: 500,
+            bulletCooldown: 500,
+            roundTime: 60000,
+            minSpeed: 3,
+            maxSpeed: 12,
+            minCooldown: 200,
+            maxCooldown: 1000,
+            sneakOffset: 6,
+            recoilJumpForce: 5,
+            recoilDuration: 20,
+        };
+
+        const QLearning = {
+            qTable: {},
+            learningRate: 0.1,
+            discountFactor: 0.95,
+            epsilon: 0.2,
+            minEpsilon: 0.01,
+            epsilonDecay: 0.995,
+
+            getStateKey(dist, obsType, obsHeight, playerY) {
+                const distBucket = Math.min(10, Math.floor(dist / 25));
+                const heightBucket = Math.min(5, Math.floor(obsHeight / 20));
+                const yBucket = playerY > 40 ? 1 : 0;
+                return `${distBucket}_${obsType}_${heightBucket}_${yBucket}`;
+            },
+
+            getQValue(state, action) {
+                if (!this.qTable[state]) {
+                    this.qTable[state] = { jump: 0, doubleJump: 0, slide: 0, wait: 0 };
+                }
+                return this.qTable[state][action];
+            },
+
+            getBestAction(state) {
+                const actions = ['jump', 'doubleJump', 'slide', 'wait'];
+                let bestAction = actions[0];
+                let bestValue = this.getQValue(state, bestAction);
+
+                for (let action of actions) {
+                    const value = this.getQValue(state, action);
+                    if (value > bestValue) {
+                        bestValue = value;
+                        bestAction = action;
+                    }
+                }
+                return bestAction;
+            },
+
+            chooseAction(state) {
+                if (Math.random() < this.epsilon) {
+                    const actions = ['jump', 'doubleJump', 'slide', 'wait'];
+                    return actions[Math.floor(Math.random() * actions.length)];
+                } else {
+                    return this.getBestAction(state);
+                }
+            },
+
+            updateQValue(state, action, reward, nextState) {
+                const currentQ = this.getQValue(state, action);
+                const maxNextQ = Math.max(
+                    this.getQValue(nextState, 'jump'),
+                    this.getQValue(nextState, 'doubleJump'),
+                    this.getQValue(nextState, 'slide'),
+                    this.getQValue(nextState, 'wait')
+                );
+
+                const newQ = currentQ + this.learningRate * (reward + this.discountFactor * maxNextQ - currentQ);
+
+                if (!this.qTable[state]) {
+                    this.qTable[state] = { jump: 0, doubleJump: 0, slide: 0, wait: 0 };
+                }
+                this.qTable[state][action] = newQ;
+            },
+
+            decayEpsilon() {
+                this.epsilon = Math.max(this.minEpsilon, this.epsilon * this.epsilonDecay);
+            },
+
+            save() {
+                localStorage.setItem('runnerAI_QTable', JSON.stringify(this.qTable));
+                localStorage.setItem('runnerAI_epsilon', this.epsilon.toString());
+                console.log('✅ AI 학습 데이터 저장 완료!');
+            },
+
+            load() {
+                const savedTable = localStorage.getItem('runnerAI_QTable');
+                const savedEpsilon = localStorage.getItem('runnerAI_epsilon');
+
+                if (savedTable) {
+                    this.qTable = JSON.parse(savedTable);
+                    console.log('✅ AI 학습 데이터 로드 완료!');
+                }
+                if (savedEpsilon) {
+                    this.epsilon = parseFloat(savedEpsilon);
+                }
+            },
+
+            reset() {
+                this.qTable = {};
+                this.epsilon = 0.2;
+                localStorage.removeItem('runnerAI_QTable');
+                localStorage.removeItem('runnerAI_epsilon');
+                console.log('🔄 AI 학습 데이터 초기화');
+            }
+        };
+
+        const trainingStats = {
+            episode: 0,
+            scores: [],
+            bestScore: 0,
+            totalReward: 0
+        };
+
+        const state = {
+            isPlaying: false,
+            score: 0,
+            stamina: 100,
+            lastActionTime: 0,
+            isCharging: false,
+            chargeStart: 0,
+            lastWallTime: 0,
+            lastBulletTime: 0,
+            obs: [],
+            p1Y: 40,
+            p1Vy: 0,
+            p1Jump: false,
+            p1Rot: 0,
+            p1Sneak: false,
+            startTime: 0,
+            scoreAccumulator: 0,
+            jumpCount: 0,
+            p2Y: 40,
+            p2Vy: 0,
+            recoilTimer: 0,
+            lastState: null,
+            lastAction: null
+        };
+
+        const els = {
+            game: document.getElementById('game-container'),
+            p1: document.getElementById('player1'),
+            p2: document.getElementById('player2'),
+            ground: document.getElementById('ground'),
+            obsLayer: document.getElementById('obstacles-layer')
+        };
+
+        let loopId = 0;
+        let lastFrameTime = 0;
+        const frameDelay = 1000 / 60;
+        let groundScrollX = 0;
+        let groundSpeed = 3;
+        let wallTileSize = 40;
+        let obstaclePool = [];
+        let isTraining = false;
+        let speedMode = false;
+        let showHitbox = false;
+        let virtualTime = 0;
+        let lastRealTime = 0;
+
+        const p1Rect = { x: 60, y: 40, w: 32, h: 32 };
+
+        function getGameTime() {
+            const realNow = Date.now();
+            const realDelta = realNow - lastRealTime;
+            lastRealTime = realNow;
+
+            // 고속 모드: 시간을 10배 빠르게
+            const timeDelta = speedMode ? realDelta * 10 : realDelta;
+            virtualTime += timeDelta;
+
+            return virtualTime;
+        }
+
+        function executeAction(action) {
+            if (action === 'jump' && state.jumpCount < 2 && state.p1Y <= 40) {
+                state.p1Vy = CONFIG.jumpForce;
+                state.p1Jump = true;
+                state.jumpCount++;
+            } else if (action === 'doubleJump' && state.jumpCount === 1 && state.p1Y > 40) {
+                state.p1Vy = CONFIG.jumpForce;
+                state.jumpCount++;
+            } else if (action === 'slide' && state.p1Y <= 40 && !state.p1Sneak) {
+                state.p1Sneak = true;
+                setTimeout(() => { state.p1Sneak = false; }, 300);
+            }
+        }
+
+        function getCurrentState() {
+            let nearestObs = null;
+            let minDist = Infinity;
+
+            for (let o of state.obs) {
+                if (o.x + o.w > p1Rect.x) {
+                    const dist = o.x - p1Rect.x;
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestObs = o;
+                    }
+                }
+            }
+
+            if (nearestObs) {
+                return QLearning.getStateKey(minDist, nearestObs.type, nearestObs.h, state.p1Y);
+            }
+            return null;
+        }
+
+        function gameLoop() {
+            if (!state.isPlaying) return;
+
+            const now = getGameTime();  // 👈 Date.now() 대신 getGameTime()
+            const deltaTime = now - lastFrameTime;
+
+
+            if (deltaTime < frameDelay) {
+                loopId = requestAnimationFrame(gameLoop);
+                return;
+            }
+
+            lastFrameTime = now - (deltaTime % frameDelay);
+
+            if (now - state.startTime >= CONFIG.roundTime) {
+                endRound("TIME UP!", state.score);
+                return;
+            }
+
+            const progress = (now - state.startTime) / CONFIG.roundTime;
+            const currentSpeed = CONFIG.minSpeed + progress * (CONFIG.maxSpeed - CONFIG.minSpeed);
+            groundSpeed = Math.min(CONFIG.maxSpeed, Math.max(CONFIG.minSpeed, currentSpeed));
+            CONFIG.wallSpeed = groundSpeed;
+            CONFIG.bulletSpeed = groundSpeed + 3;
+
+            const currentCooldown = CONFIG.maxCooldown - progress * (CONFIG.maxCooldown - CONFIG.minCooldown);
+            CONFIG.wallCooldown = Math.max(CONFIG.minCooldown, currentCooldown);
+            CONFIG.bulletCooldown = Math.max(CONFIG.minCooldown, currentCooldown);
+
+            if (!state.isCharging && (now - state.lastActionTime > CONFIG.regenWait)) {
+                if (state.stamina < CONFIG.maxStamina) {
+                    state.stamina += CONFIG.regenRate;
+                    if (state.stamina > CONFIG.maxStamina) state.stamina = CONFIG.maxStamina;
+                }
+            }
+
+            if (state.isCharging) {
+                let chargeTime = now - state.chargeStart;
+                let currentCost = CONFIG.wallBaseCost + ((chargeTime / 16) * CONFIG.wallCostPerFrame);
+                if (state.stamina < currentCost) {
+                    spawnWall(now);
+                    state.isCharging = false;
+                    state.lastActionTime = now;
+                }
+            }
+
+            // 시간 기반 점수 증가
+            const timeMultiplier = speedMode ? 10 : 1;
+            state.scoreAccumulator += 0.1 * timeMultiplier;
+            if (state.scoreAccumulator >= 1) {
+                state.score += Math.floor(state.scoreAccumulator);
+                trainingStats.totalReward += Math.floor(state.scoreAccumulator);
+                state.scoreAccumulator -= Math.floor(state.scoreAccumulator);
+            }
+
+            if (state.p1Jump || state.p1Y > 40) {
+                state.p1Vy -= CONFIG.gravity;
+                state.p1Y += state.p1Vy;
+
+                if (state.p1Y <= 40) {
+                    state.p1Y = 40;
+                    state.p1Vy = 0;
+                    state.p1Jump = false;
+                    state.p1Rot = 0;
+                    state.jumpCount = 0;
+                } else {
+                    state.p1Rot = -state.p1Vy * 2;
+                }
+            }
+
+            if (state.p2Y > 40 || state.p2Vy !== 0) {
+                state.p2Vy -= CONFIG.gravity;
+                state.p2Y += state.p2Vy;
+                if (state.p2Y <= 40) {
+                    state.p2Y = 40;
+                    state.p2Vy = 0;
+                }
+            }
+
+            if (state.recoilTimer > 0) state.recoilTimer--;
+
+            p1Rect.y = state.p1Y;
+            const p1H = state.p1Sneak ? (p1Rect.h - CONFIG.sneakOffset) : p1Rect.h;
+
+            const currentState = getCurrentState();
+
+            if (currentState && state.lastState && state.lastAction) {
+                let reward = 1;
+                QLearning.updateQValue(state.lastState, state.lastAction, reward, currentState);
+            }
+
+            if (currentState) {
+                const action = QLearning.chooseAction(currentState);
+                executeAction(action);
+                state.lastState = currentState;
+                state.lastAction = action;
+            }
+
+            for (let i = state.obs.length - 1; i >= 0; i--) {
+                let o = state.obs[i];
+                const dir = (o.spd > 0) ? 1 : -1;
+                o.spd = (o.type === 'bullet') ? dir * CONFIG.bulletSpeed : dir * CONFIG.wallSpeed;
+                o.x += o.spd;
+
+                if (p1Rect.x < o.x + o.w && p1Rect.x + p1Rect.w > o.x &&
+                    p1Rect.y < o.y + o.h && p1Rect.y + p1H > o.y) {
+
+                    if (state.lastState && state.lastAction) {
+                        QLearning.updateQValue(state.lastState, state.lastAction, -1000, null);
+                    }
+
+                    endRound("HIT OBSTACLE!", state.score);
+                    return;
+                }
+
+                if (!o.passed) {
+                    if (o.x + o.w < p1Rect.x) {
+                        o.passed = true;
+                        state.score += 100;
+                        trainingStats.totalReward += 100;
+
+                        if (state.lastState && state.lastAction) {
+                            QLearning.updateQValue(state.lastState, state.lastAction, 100, currentState);
+                        }
+                    }
+                }
+
+                if (o.x < -100 || o.x > 900) state.obs.splice(i, 1);
+            }
+
+            if (Math.random() < 0.02) {
+                if (Math.random() < 0.6) {
+                    spawnBullet(now);
+                } else {
+                    if (!state.isCharging && state.stamina >= CONFIG.wallBaseCost) {
+                        state.isCharging = true;
+                        state.chargeStart = now;
+                        const delay = (Math.random() * 500 + 200) / (speedMode ? 10 : 1);
+                        setTimeout(() => {
+                            if (state.isCharging) {
+                                spawnWall(getGameTime());
+                                state.isCharging = false;
+                                state.lastActionTime = getGameTime();  // 👈 이것도 수정
+                            }
+                        }, delay);
+                    }
+                }
+            }
+
+            // 고속 모드에서는 렌더링 생략
+            if (!speedMode) render(now);
+
+            loopId = requestAnimationFrame(gameLoop);
+            updateUI();
+        }
+
+        function spawnWall(now) {
+            if (now - state.lastWallTime < CONFIG.wallCooldown) return;
+            state.lastWallTime = now;
+            state.stamina -= CONFIG.wallBaseCost;
+
+            state.obs.push({
+                type: 'wall',
+                x: 700,
+                y: 40,
+                w: 20,
+                h: wallTileSize,
+                spd: -CONFIG.wallSpeed,
+                passed: false
+            });
+        }
+
+        function spawnBullet(now) {
+            if (now - state.lastBulletTime < CONFIG.bulletCooldown) return;
+            if (state.stamina < CONFIG.bulletCost) return;
+
+            state.lastBulletTime = now;
+            state.stamina -= CONFIG.bulletCost;
+            state.p2Vy = CONFIG.recoilJumpForce;
+            state.recoilTimer = CONFIG.recoilDuration;
+
+            state.obs.push({
+                type: 'bullet',
+                x: 700,
+                y: 70,
+                w: 48,
+                h: 12,
+                spd: -CONFIG.bulletSpeed,
+                passed: false
+            });
+        }
+
+        function render(now) {
+            els.p1.style.backgroundImage = `url('assets/mort.png')`;
+            els.p1.style.backgroundPosition = `-${4 * 64}px 0`;
+            els.p1.style.left = (p1Rect.x - 16) + 'px';
+            els.p1.style.bottom = (state.p1Y - 16) + 'px';
+            els.p1.style.transform = `scaleX(1) rotate(${state.p1Rot}deg)`;
+
+            // 👇 플레이어 히트박스 추가
+            if (showHitbox) {
+                let playerHitbox = document.getElementById('player-hitbox');
+                if (!playerHitbox) {
+                    playerHitbox = document.createElement('div');
+                    playerHitbox.id = 'player-hitbox';
+                    playerHitbox.className = 'player-hitbox';
+                    els.game.appendChild(playerHitbox);
+                }
+                const p1H = state.p1Sneak ? (p1Rect.h - CONFIG.sneakOffset) : p1Rect.h;
+                playerHitbox.style.display = 'block';
+                playerHitbox.style.left = p1Rect.x + 'px';
+                playerHitbox.style.bottom = state.p1Y + 'px';
+                playerHitbox.style.width = p1Rect.w + 'px';
+                playerHitbox.style.height = p1H + 'px';
+            } else {
+                const playerHitbox = document.getElementById('player-hitbox');
+                if (playerHitbox) playerHitbox.style.display = 'none';
+            }
+
+            els.p2.style.backgroundImage = `url('assets/doux.png')`;
+            els.p2.style.backgroundPosition = `-${4 * 64}px 0`;
+            els.p2.style.left = '684px';
+            els.p2.style.bottom = (state.p2Y - 16) + 'px';
+            els.p2.style.transform = `scaleX(-1)`;
+
+            state.obs.forEach((o, index) => {
+                let div = obstaclePool[index];
+                if (!div) {
+                    div = document.createElement('div');
+                    els.obsLayer.appendChild(div);
+                    obstaclePool.push(div);
+                }
+
+                div.style.display = 'block';
+                div.className = 'obstacle ' + o.type;
+
+                // 👇 히트박스 표시 추가
+                if (showHitbox) {
+                    div.classList.add('hitbox-visual');
+                } else {
+                    div.classList.remove('hitbox-visual');
+                }
+
+                if (o.type === 'bullet') {
+                    // 👇 히트박스 모드일 때는 실제 크기로 표시
+                    if (showHitbox) {
+                        div.style.position = 'absolute';
+                        div.style.left = o.x + 'px';
+                        div.style.bottom = o.y + 'px';
+                        div.style.width = o.w + 'px';
+                        div.style.height = o.h + 'px';
+                        div.style.backgroundImage = 'none';
+                        div.style.transform = 'none';
+                    } else {
+                        // 일반 모드: 예쁜 그래픽
+                        div.style.position = 'absolute';
+                        div.style.left = (o.x - 24) + 'px';
+                        div.style.bottom = (o.y - 42) + 'px';
+                        div.style.width = '96px';
+                        div.style.height = '96px';
+                        div.style.backgroundImage = "url('assets/fireball.png')";
+                        div.style.backgroundSize = 'auto 96px';
+                        div.style.backgroundRepeat = 'no-repeat';
+                        div.style.backgroundPosition = '0 0';
+                        div.style.transform = 'scaleX(-1)';
+                    }
+                    div.style.imageRendering = 'pixelated';
+                    div.style.zIndex = '11';
+                } else {
+                    // Wall은 원래대로
+                    div.style.position = 'absolute';
+                    div.style.left = o.x + 'px';
+                    div.style.bottom = o.y + 'px';
+                    div.style.width = o.w + 'px';
+                    div.style.height = o.h + 'px';
+                    if (!showHitbox) {
+                        div.style.backgroundImage = "url('assets/wall.png')";
+                        div.style.backgroundSize = '20px auto';
+                        div.style.backgroundRepeat = 'repeat-y';
+                        div.style.backgroundPosition = 'center bottom';
+                        div.style.border = '1px solid #222';
+                        div.style.borderRadius = '3px 3px 0 0';
+                    } else {
+                        div.style.backgroundImage = 'none';
+                        div.style.border = 'none';
+                        div.style.borderRadius = '0';
+                    }
+                    div.style.transform = 'none';
+                    div.style.zIndex = '11';
+                }
+            });
+
+            for (let i = state.obs.length; i < obstaclePool.length; i++) {
+                obstaclePool[i].style.display = 'none';
+            }
+
+            groundScrollX = (groundScrollX + groundSpeed) % 800;
+            els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
+        }
+
+        function startRound() {
+            state.isPlaying = true;
+            state.score = 0;
+            state.scoreAccumulator = 0;
+            virtualTime = Date.now();
+            lastRealTime = Date.now();
+            state.startTime = virtualTime;
+            state.p1Y = 40;
+            state.p1Vy = 0;
+            state.p1Jump = false;
+            state.p1Rot = 0;
+            state.stamina = 100;
+            state.lastActionTime = virtualTime;
+            state.isCharging = false;
+            state.chargeStart = 0;
+            state.lastWallTime = 0;
+            state.lastBulletTime = 0;
+            state.obs = [];
+            state.jumpCount = 0;
+            state.p1Sneak = false;
+            state.p2Y = 40;
+            state.p2Vy = 0;
+            state.recoilTimer = 0;
+            state.lastState = null;
+            state.lastAction = null;
+
+            if (loopId) cancelAnimationFrame(loopId);
+            lastFrameTime = virtualTime;  // Date.now() → virtualTime
+            gameLoop();
+        }
+
+        function endRound(reason, score) {
+            state.isPlaying = false;
+            cancelAnimationFrame(loopId);
+
+            trainingStats.episode++;
+            trainingStats.scores.push(score);
+            if (score > trainingStats.bestScore) {
+                trainingStats.bestScore = score;
+            }
+
+            QLearning.decayEpsilon();
+
+            if (isTraining) {
+                setTimeout(() => {
+                    startRound();
+                }, speedMode ? 10 : 100);
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('episode').innerText = trainingStats.episode;
+            document.getElementById('current-score').innerText = state.score;
+
+            const avgScore = trainingStats.scores.length > 0
+                ? Math.round(trainingStats.scores.reduce((a, b) => a + b, 0) / trainingStats.scores.length)
+                : 0;
+            document.getElementById('avg-score').innerText = avgScore;
+            document.getElementById('best-score').innerText = trainingStats.bestScore;
+            document.getElementById('epsilon').innerText = QLearning.epsilon.toFixed(3);
+            document.getElementById('state-count').innerText = Object.keys(QLearning.qTable).length;
+
+            const progress = trainingStats.episode % 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+        }
+
+        function startTraining() {
+            isTraining = true;
+            if (!state.isPlaying) {
+                startRound();
+            }
+        }
+
+        function stopTraining() {
+            isTraining = false;
+            state.isPlaying = false;
+        }
+
+        function resetAI() {
+            if (confirm('정말로 AI 학습 데이터를 초기화하시겠습니까?')) {
+                QLearning.reset();
+                trainingStats.episode = 0;
+                trainingStats.scores = [];
+                trainingStats.bestScore = 0;
+                updateUI();
+            }
+        }
+
+        function saveAI() {
+            QLearning.save();
+            alert('AI 학습 데이터가 저장되었습니다!');
+        }
+
+        function toggleSpeedMode() {
+            speedMode = document.getElementById('speed-mode').checked;
+        }
+        function toggleHitboxMode() {
+            showHitbox = document.getElementById('hitbox-mode').checked;
+        }
+        setInterval(() => {
+            console.log('에피소드:', trainingStats.episode, '평균:', Math.round(trainingStats.scores.reduce((a, b) => a + b, 0) / trainingStats.scores.length || 0));
+        }, 5000);
+
+        QLearning.load();
+        updateUI();
+    </script>
+</body>
+
+</html>
