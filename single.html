@@ -32,10 +32,16 @@
             width: 800px;
             height: 300px;
             border: 4px solid #666;
-            background-color: #dcdcdc;
+            background-image: url('assets/background.png');
+            background-size: cover;
             position: relative;
             overflow: hidden;
             box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+
+            /* [수정] 배경 위치 조정 */
+            /* center: 가로는 가운데 정렬 */
+            /* -50px: 세로는 위로 50px 이동 (원하는 만큼 숫자를 바꾸세요) */
+            background-position: center -50px;
         }
 
         #ui-layer {
@@ -166,11 +172,12 @@
             width: 100%;
             height: 45px;
             background-image: url('assets/ground.png');
+            overflow: hidden;
             background-size: auto 45px;
             background-repeat: repeat-x;
             background-position: 0 0;
             position: absolute;
-            bottom: 5px;
+            bottom: -5px;
             left: 0;
             z-index: 10;
         }
@@ -269,11 +276,6 @@
             box-shadow: 0 0 15px #007bff;
         }
 
-        .char-card.selected-p2 {
-            border-color: #ff4444;
-            box-shadow: 0 0 15px #ff4444;
-        }
-
         .char-preview {
             width: 64px;
             height: 64px;
@@ -336,17 +338,35 @@
         }
 
         #sliders {
-            margin-top: 20px;
+            margin-top: 10px;
             background: rgba(0, 0, 0, 0.5);
-            padding: 15px;
+            padding: 10px;
             border-radius: 8px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px 20px;
+            width: 90%;
+            max-width: 700px;
         }
 
         .slider-container {
-            margin: 10px 0;
+            margin: 0;
             display: flex;
             justify-content: space-between;
-            width: 300px;
+            align-items: center;
+            width: 100%;
+            font-size: 11px;
+        }
+
+        .slider-container label {
+            flex: 1;
+            text-align: left;
+            margin-right: 5px;
+            white-space: nowrap;
+        }
+
+        .slider-container input {
+            width: 80px;
         }
 
         .blink {
@@ -453,6 +473,7 @@
                     <label>Recoil Lookback: <span id="val-recoil-time">20</span> frames</label>
                     <input type="range" id="input-recoil-time" min="0" max="60" value="20">
                 </div>
+
             </div>
         </div>
     </div>
@@ -503,12 +524,14 @@
             jumpCount: 0,
             lastDoubleJumpTime: 0,
             selectionPhase: true,
+            startScreen: false, // [NEW] Track start screen state
             p1Char: 'mort',
             p2Char: 'doux',
             p2Y: 40,
             p2Vy: 0,
             recoilTimer: 0,
-            explosions: []
+            explosions: [],
+            groundTiles: []
         };
 
         const els = {
@@ -552,6 +575,14 @@
 
         const p1Rect = { x: 40, y: 40, w: 32, h: 32 }; // 32x32px Hitbox
 
+        // [NEW] Tile Palette Configuration
+        // Add {tx, ty} objects here to restrict which tiles are spawned.
+        // tx: 0-3 (column), ty: 0-3 (row)
+        const TILE_PALETTE = [
+            { tx: 3, ty: 0 },
+
+        ];
+
         function initGame() {
             const images = [
                 'assets/mort.png',
@@ -561,6 +592,7 @@
                 'assets/fireball.png',
                 'assets/wall.png',
                 'assets/ground.png',
+                'assets/ground_tile.png',
                 'assets/explosion.png'
             ];
 
@@ -589,6 +621,7 @@
                 CONFIG.recoilDuration = parseInt(e.target.value);
                 document.getElementById('val-recoil-time').innerText = CONFIG.recoilDuration;
             });
+
             updateSelection();
         }
 
@@ -641,13 +674,6 @@
                     card.appendChild(cursor);
                 }
 
-                if (index === p2SelIndex) {
-                    const cursor = document.createElement('div');
-                    cursor.className = 'p2-cursor';
-                    cursor.innerText = p2Confirmed ? 'READY' : 'P2';
-                    card.appendChild(cursor);
-                }
-
                 grid.appendChild(card);
             });
             if (p1Confirmed) {
@@ -665,10 +691,11 @@
                 if (p2Confirmed) {
                     setTimeout(() => {
                         state.selectionPhase = false;
+                        state.startScreen = true; // [NEW] Go to start screen
                         state.p1Char = CONFIG.characters[p1SelIndex];
                         state.p2Char = CONFIG.characters[p2SelIndex];
                         document.getElementById('char-select').style.display = 'none';
-                        startGame();
+                        document.getElementById('start-screen').style.display = 'flex'; // Show start screen
                     }, 500);
                     return;
                 }
@@ -761,8 +788,6 @@
 
                 CONFIG.wallCooldown = clampedCooldown;
                 CONFIG.bulletCooldown = clampedCooldown;
-
-                document.getElementById('cooldown-indicator').innerText = "⏳ COOLDOWN: " + Math.floor(clampedCooldown);
 
                 // Stamina Regen
                 if (!state.isCharging && (now - state.lastActionTime > CONFIG.regenWait)) {
@@ -881,12 +906,12 @@
                 // Collision Logic with Sneak
                 const p1H = state.p1Sneak ? (p1Rect.h - CONFIG.sneakOffset) : p1Rect.h;
 
-                // Debug box update
-                const debugBox = document.getElementById('debug-box');
-                debugBox.style.left = p1Rect.x + 'px';
-                debugBox.style.bottom = p1Rect.y + 'px';
-                debugBox.style.width = p1Rect.w + 'px';
-                debugBox.style.height = p1H + 'px';
+                // // Debug box update
+                // const debugBox = document.getElementById('debug-box');
+                // debugBox.style.left = p1Rect.x + 'px';
+                // debugBox.style.bottom = p1Rect.y + 'px';
+                // debugBox.style.width = p1Rect.w + 'px';
+                // debugBox.style.height = p1H + 'px';
 
                 // 장애물 최대 12개 유지
                 if (state.obs.length > 12) {
@@ -897,7 +922,7 @@
                 for (let i = state.obs.length - 1; i >= 0; i--) {
                     let o = state.obs[i];
                     const dir = (o.spd > 0) ? 1 : -1;
-                    o.spd = (o.type === 'bullet') ? dir * CONFIG.bulletSpeed : dir * CONFIG.wallSpeed;
+                    o.spd = (o.type === 'bullet') ? dir * (groundSpeed + 3) : dir * groundSpeed;
                     o.x += o.spd;
                     if (o.type === 'bullet' && frameCount % 4 === 0) {
                         o.animFrame = (o.animFrame + 1) % 8;
@@ -1278,7 +1303,7 @@
                     // div.innerHTML = `...`;  // Comment this out or remove it
                 } else {
                     // Normal rendering for walls
-                    div.style.transform = `translate3d(${o.x}px, ${-o.y}px, 0)`;
+                    div.style.transform = `translate3d(${Math.round(o.x)}px, ${Math.round(-o.y)}px, 0)`;
                     div.style.left = '0';
                     div.style.bottom = '0';
                     div.style.width = o.w + 'px';
@@ -1309,13 +1334,14 @@
                 els.staminaText.innerText = Math.floor(state.stamina) + '%';
             }
 
-            // Ground Scroll
+            // Ground Scroll (Simple background)
             if (state.round === 1) {
                 groundScrollX = (groundScrollX + groundSpeed) % 800;
             } else {
                 groundScrollX = (groundScrollX - groundSpeed + 800) % 800;
             }
             els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
+            // els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
 
             // 👇 스태미나 바 위치 업데이트 (공격자 위)
             const attacker = state.round === 1 ? els.p2 : els.p1;
@@ -1328,11 +1354,11 @@
             if (state.round === 1) {
                 // 라운드 1: P2 위
                 staminaBox.style.left = '676px';  // P2 X 위치
-                staminaBox.style.bottom = (state.p2Y + 80) + 'px';
+                staminaBox.style.bottom = (state.p2Y + 40) + 'px';
             } else {
                 // 라운드 2: P1 위
-                staminaBox.style.left = '32px';  // P1 X 위치
-                staminaBox.style.bottom = (state.p2Y + 80) + 'px';
+                staminaBox.style.left = '24px';  // P1 X 위치
+                staminaBox.style.bottom = (state.p2Y + 40) + 'px';
             }
         }
 
@@ -1356,6 +1382,16 @@
                         if (p2Confirmed && p1SelIndex === p2SelIndex) return;
                         p1Confirmed = true;
                     }
+                }
+                return;
+            }
+
+            // [NEW] Start Screen Controls
+            if (state.startScreen) {
+                if (e.code === 'Space') {
+                    state.startScreen = false;
+                    document.getElementById('start-screen').style.display = 'none';
+                    startGame();
                 }
                 return;
             }

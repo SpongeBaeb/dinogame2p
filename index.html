@@ -6,7 +6,6 @@
     <title>Runner vs Attacker - Main Menu</title>
     <link rel="stylesheet" href="css/game.css">
     <style>
-        /* 메뉴 전용 스타일 (CSS 파일이 없다면 여기에 포함) */
         body {
             background-color: #111;
             color: white;
@@ -74,10 +73,43 @@
             font-size: 12px;
             color: #555;
         }
+
+        .user-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            text-align: right;
+        }
+
+        .user-info span {
+            color: #ffcc00;
+            font-size: 16px;
+        }
+
+        .user-info button {
+            margin-left: 10px;
+            padding: 5px 15px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .user-info a {
+            color: #00c6ff;
+            text-decoration: none;
+            margin-left: 10px;
+        }
     </style>
 </head>
 
 <body>
+    <div class="user-info">
+        <span id="username-display"></span>
+        <button id="logout-btn" style="display: none;">Logout</button>
+        <a href="login.html" id="login-link" style="display: none;">Login</a>
+    </div>
 
     <h1>⚡ RUNNER vs ATTACKER ⚡</h1>
     <p>Choose Your Battle Mode</p>
@@ -104,6 +136,30 @@
 
     <div class="footer">Developed by User & Gemini AI</div>
 
+    <script>
+        const authToken = localStorage.getItem('authToken');
+        const username = localStorage.getItem('username');
+        const usernameDisplay = document.getElementById('username-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const loginLink = document.getElementById('login-link');
+
+        if (authToken && username) {
+            usernameDisplay.textContent = `Welcome, ${username}!`;
+            logoutBtn.style.display = 'inline-block';
+
+            logoutBtn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to logout?')) {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('username');
+                    localStorage.removeItem('userId');
+                    window.location.href = 'login.html';
+                }
+            });
+        } else {
+            usernameDisplay.textContent = 'Guest Mode';
+            loginLink.style.display = 'inline';
+        }
+    </script>
 </body>
 
 </html>

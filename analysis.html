@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Runner Game Analysis Tool</title>
+    <script src="js/config.js"></script>
+    <script src="js/physics.js"></script>
+    <style>
+        body {
+            font-family: 'Consolas', monospace;
+            background: #222;
+            color: #eee;
+            padding: 20px;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+
+        .panel {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            width: 400px;
+        }
+
+        canvas {
+            background: #dcdcdc;
+            border: 4px solid #666;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .log {
+            height: 300px;
+            overflow-y: auto;
+            background: #111;
+            border: 1px solid #555;
+            padding: 10px;
+            font-size: 12px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+        }
+
+        .pass {
+            color: lime;
+        }
+
+        .fail {
+            color: red;
+            font-weight: bold;
+        }
+
+        .info {
+            color: cyan;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🕵️ Runner Game Pattern Analysis</h1>
+    <div class="container">
+        <div>
+            <canvas id="simCanvas" width="800" height="300"></canvas>
+            <div id="visualizer-status">Visualizing: None</div>
+        </div>
+        <div class="panel">
+            <h2>Analysis Controls</h2>
+            <div>
+                <label>Game Speed (Simulation):</label>
+                <select id="speedSelect">
+                    <option value="5">Min Speed (5)</option>
+                    <option value="8">Mid Speed (8)</option>
+                    <option value="12" selected>Max Speed (12)</option>
+                </select>
+            </div>
+            <br>
+            <div>
+                <label>Test Pattern:</label>
+                <select id="patternSelect">
+                    <option value="WALL_WALL">Wall -> Wall</option>
+                    <!DOCTYPE html>
+                    <html lang="ko">
+
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Runner Game Analysis Tool</title>
+                        <script src="js/config.js"></script>
+                        <script src="js/physics.js"></script>
+                        <style>
+                            body {
+                                font-family: 'Consolas', monospace;
+                                background: #222;
+                                color: #eee;
+                                padding: 20px;
+                            }
+
+                            .container {
+                                display: flex;
+                                gap: 20px;
+                            }
+
+                            .panel {
+                                background: #333;
+                                padding: 20px;
+                                border-radius: 8px;
+                                width: 400px;
+                            }
+
+                            canvas {
+                                background: #dcdcdc;
+                                border: 4px solid #666;
+                            }
+
+                            button {
+                                padding: 10px 20px;
+                                font-size: 16px;
+                                cursor: pointer;
+                                background: #007bff;
+                                color: white;
+                                border: none;
+                                border-radius: 4px;
+                                margin-top: 10px;
+                            }
+
+                            button:hover {
+                                background: #0056b3;
+                            }
+
+                            .log {
+                                height: 300px;
+                                overflow-y: auto;
+                                background: #111;
+                                border: 1px solid #555;
+                                padding: 10px;
+                                font-size: 12px;
+                                margin-top: 10px;
+                                white-space: pre-wrap;
+                            }
+
+                            .pass {
+                                color: lime;
+                            }
+
+                            .fail {
+                                color: red;
+                                font-weight: bold;
+                            }
+
+                            .info {
+                                color: cyan;
+                            }
+                        </style>
+                    </head>
+
+                    <body>
+                        <h1>🕵️ Runner Game Pattern Analysis</h1>
+                        <div class="container">
+                            <div>
+                                <canvas id="simCanvas" width="800" height="300"></canvas>
+                                <div id="visualizer-status">Visualizing: None</div>
+                            </div>
+                            <div class="panel">
+                                <h2>Analysis Controls</h2>
+                                <div>
+                                    <label>Game Speed (Simulation):</label>
+                                    <select id="speedSelect">
+                                        <option value="5">Min Speed (5)</option>
+                                        <option value="8">Mid Speed (8)</option>
+                                        <option value="12" selected>Max Speed (12)</option>
+                                    </select>
+                                </div>
+                                <br>
+                                <div>
+                                    <label>Test Pattern:</label>
+                                    <select id="patternSelect">
+                                        <option value="WALL_WALL">Wall -> Wall</option>
+                                        <option value="WALL_BULLET">Wall -> Bullet</option>
+                                        <option value="BULLET_WALL">Bullet -> Wall</option>
+                                        <option value="BULLET_BULLET">Bullet -> Bullet</option>
+                                    </select>
+                                </div>
+                                <br>
+                                <div>
+                                    <label>Max Jumps:</label>
+                                    <select id="maxJumpsSelect">
+                                        <option value="1">Single Jump (1)</option>
+                                        <option value="2" selected>Double Jump (2)</option>
+                                    </select>
+                                </div>
+                                <br>
+                                <button onclick="runAnalysis()">▶ Start Analysis</button>
+                                <div class="log" id="logBox">Ready...</div>
+                            </div>
+                        </div>
+
+                        <script>
+                            // Initialize Physics Engine
+                            const CONFIG = { ...GAME_CONFIG, groundY: 40 }; // Local play uses 40
+                            const physics = new PhysicsEngine(CONFIG);
+
+                            // === 2. SIMULATION LOGIC ===
+                            class State {
+                                constructor(p1Y, p1Vy, p1Jump, jumpCount, p1Sneak, frame) {
+                                    this.p1Y = p1Y;
+                                    this.p1Vy = p1Vy;
+                                    this.p1Jump = p1Jump;
+                                    this.jumpCount = jumpCount;
+                                    this.p1Sneak = p1Sneak;
+                                    this.frame = frame;
+                                    this.p1Rot = 0;
+                                    this.parent = null; // For path reconstruction
+                                    this.action = '';   // Action taken to reach this state
+                                }
+
+                                clone() {
+                                    return new State(this.p1Y, this.p1Vy, this.p1Jump, this.jumpCount, this.p1Sneak, this.frame);
+                                }
+                            }
+
+                            function stepPhysics(state, action) {
+                                // Apply Action
+                                if (action === 'JUMP') {
+                                    physics.applyJump(state);
+                                    state.p1Sneak = false;
+                                } else if (action === 'SNEAK') {
+                                    state.p1Sneak = true;
+                                } else if (action === 'HOLD_SNEAK') {
+                                    state.p1Sneak = true;
+                                } else {
+                                    state.p1Sneak = false;
+                                }
+
+                                // Apply Gravity & Movement
+                                physics.updateP1(state);
+                                state.frame++;
+                            }
+
+                            function checkCollision(state, obstacles) {
+                                const pRect = {
+                                    x: 60, // Player X is fixed in Round 1
+                                    y: state.p1Y,
+                                    w: 32,
+                                    h: state.p1Sneak ? (32 - 6) : 32 // 32 - sneakOffset
+                                };
+
+                                for (let obs of obstacles) {
+                                    // Calculate obs position at this frame
+                                    const obsX = obs.spawnX - (obs.speed * state.frame);
+
+                                    const oRect = {
+                                        x: obsX,
+                                        y: obs.y,
+                                        w: obs.w,
+                                        h: obs.h
+                                    };
+
+                                    if (physics.checkCollision(pRect, oRect)) {
+                                        return true; // Collision
+                                    }
+                                }
+                                return false;
+                            }
+
+                            // === 3. SOLVER (BFS) ===
+                            function findSurvivalPath(obstacles, maxJumps) {
+                                // Initial State
+                                let queue = [new State(CONFIG.groundY, 0, false, 0, false, 0)];
+                                let visited = new Set();
+
+                                const MAX_DEPTH = 600;
+
+                                let longestLivedState = queue[0];
+
+                                while (queue.length > 0) {
+                                    let current = queue.shift();
+
+                                    if (current.frame > longestLivedState.frame) {
+                                        longestLivedState = current;
+                                    }
+
+                                    // Pruning: If we passed all obstacles, we survived!
+                                    let maxObsX = -1000;
+                                    for (let o of obstacles) {
+                                        let x = o.spawnX - (o.speed * current.frame);
+                                        if (x + o.w > maxObsX) maxObsX = x + o.w;
+                                    }
+
+                                    // Wait until obstacles are well off-screen (-100) before declaring success
+                                    if (maxObsX < -100) {
+                                        return { success: true, path: reconstructPath(current) };
+                                    }
+
+                                    if (current.frame >= MAX_DEPTH) continue;
+
+                                    // Try all possible inputs
+                                    const actions = ['NONE', 'SNEAK'];
+                                    if (current.jumpCount < maxJumps) actions.push('JUMP');
+                                    if (current.p1Sneak) actions.push('HOLD_SNEAK');
+
+                                    for (let action of actions) {
+                                        let next = current.clone();
+                                        next.parent = current;
+                                        next.action = action;
+
+                                        stepPhysics(next, action);
+
+                                        if (!checkCollision(next, obstacles)) {
+                                            // Optimization: Spatial hashing
+                                            let key = `${next.frame}_${Math.round(next.p1Y)}_${Math.round(next.p1Vy)}_${next.jumpCount}_${next.p1Sneak}`;
+                                            if (!visited.has(key)) {
+                                                visited.add(key);
+                                                queue.push(next);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                return { success: false, path: reconstructPath(longestLivedState) };
+                            }
+
+                            function reconstructPath(state) {
+                                let path = [];
+                                while (state) {
+                                    path.unshift(state);
+                                    state = state.parent;
+                                }
+                                return path;
+                            }
+
+                            // === 4. UI & RUNNER ===
+                            const logBox = document.getElementById('logBox');
+                            const canvas = document.getElementById('simCanvas');
+                            const ctx = canvas.getContext('2d');
+
+                            function log(msg, type = '') {
+                                const div = document.createElement('div');
+                                div.textContent = msg;
+                                if (type) div.className = type;
+                                logBox.appendChild(div);
+                                logBox.scrollTop = logBox.scrollHeight;
+                            }
+
+                            async function runAnalysis() {
+                                logBox.innerHTML = '';
+                                log("🚀 Starting Analysis...", 'info');
+
+                                const speed = parseInt(document.getElementById('speedSelect').value);
+                                const patternType = document.getElementById('patternSelect').value;
+                                const maxJumps = parseInt(document.getElementById('maxJumpsSelect').value);
+
+                                let minInterval = 150;
+                                let maxInterval = 220;
+                                let step = 1;
+
+                                log(`Testing ${patternType} at Speed ${speed} (Max Jumps: ${maxJumps})...`);
+
+                                let foundImpossible = false;
+
+                                for (let interval = minInterval; interval <= maxInterval; interval += step) {
+                                    let obstacles = [];
+
+                                    // First Obstacle (Fixed at 400px)
+                                    let obs1 = createObs(patternType.split('_')[0], 400, speed);
+                                    obstacles.push(obs1);
+
+                                    // Second Obstacle (at 400 + interval)
+                                    let obs2 = createObs(patternType.split('_')[1], 400 + interval, speed);
+                                    obstacles.push(obs2);
+
+                                    // Run Solver
+                                    let result = findSurvivalPath(obstacles, maxJumps);
+
+                                    if (result.success) {
+                                        log(`Interval ${interval}px: ✅ PASS`, 'pass');
+                                    } else {
+                                        log(`Interval ${interval}px: ❌ FAIL (Max Frame: ${result.path[result.path.length - 1].frame})`, 'fail');
+                                        foundImpossible = true;
+                                    }
+
+                                    // Visualize EVERY interval
+                                    await visualizePath(result.path, obstacles, interval, maxJumps);
+                                }
+
+                                if (foundImpossible) {
+                                    log(`\n⚠️ CONCLUSION: Unavoidable patterns EXIST.`, 'fail');
+                                } else {
+                                    log(`\n✅ CONCLUSION: No unavoidable patterns found in this range.`, 'pass');
+                                }
+                            }
+
+                            function createObs(type, x, speed) {
+                                if (type === 'WALL') {
+                                    return { type: 'WALL', spawnX: x, y: CONFIG.groundY, w: 20, h: 40, speed: speed };
+                                } else {
+                                    return { type: 'BULLET', spawnX: x, y: 70, w: 48, h: 12, speed: speed };
+                                }
+                            }
+
+                            function visualizePath(path, obstacles, interval, maxJumps) {
+                                return new Promise(resolve => {
+                                    let frameIdx = 0;
+
+                                    function draw() {
+                                        if (frameIdx >= path.length) {
+                                            resolve(); // Done
+                                            return;
+                                        }
+
+                                        const state = path[frameIdx];
+
+                                        // Clear
+                                        ctx.fillStyle = '#dcdcdc';
+                                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                                        // Ground
+                                        ctx.fillStyle = '#333';
+                                        ctx.fillRect(0, 300 - CONFIG.groundY, 800, 20);
+
+                                        // Player
+                                        ctx.fillStyle = '#007bff';
+                                        let ph = state.p1Sneak ? (32 - 6) : 32;
+                                        let py = 300 - state.p1Y - ph;
+                                        ctx.fillRect(60, py, 32, ph);
+
+                                        // Obstacles
+                                        ctx.fillStyle = 'red';
+                                        for (let o of obstacles) {
+                                            let ox = o.spawnX - (o.speed * state.frame);
+                                            let oy = 300 - o.y - o.h;
+                                            ctx.fillRect(ox, oy, o.w, o.h);
+
+                                            // Debug Collision Visual
+                                            const pRect = { x: 60, y: state.p1Y, w: 32, h: ph };
+                                            const oRect = { x: ox, y: o.y, w: o.w, h: o.h };
+                                            if (physics.checkCollision(pRect, oRect)) {
+                                                ctx.strokeStyle = 'yellow';
+                                                ctx.lineWidth = 2;
+                                                ctx.strokeRect(60, py, 32, ph);
+                                                ctx.strokeRect(ox, oy, o.w, o.h);
+                                                ctx.fillStyle = 'yellow';
+                                                ctx.fillText("COLLISION!", 10, 80);
+                                            }
+                                        }
+
+                                        // Info
+                                        ctx.fillStyle = 'black';
+                                        ctx.font = '16px monospace';
+                                        ctx.fillText(`Interval: ${interval}px | Frame: ${state.frame}`, 10, 20);
+                                        ctx.fillText(`Action: ${state.action}`, 10, 40);
+
+                                        // Jump Status
+                                        ctx.fillStyle = state.jumpCount >= maxJumps ? 'red' : 'black';
+                                        ctx.fillText(`Jumps: ${state.jumpCount}/${maxJumps}`, 10, 60);
+
+                                        frameIdx++;
+                                        requestAnimationFrame(draw);
+                                    }
+                                    draw();
+                                });
+                            }
+                        </script>
+                    </body>
+
+                    </html>

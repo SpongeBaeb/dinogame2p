@@ -33,8 +33,8 @@ const CONFIG = {
     roundTime: 60000,
 
     // 속도 증가
-    minSpeed: 3,
-    maxSpeed: 12,
+    minSpeed: 5,
+    maxSpeed: 10,
     minCooldown: 200,
     maxCooldown: 1000,
 
