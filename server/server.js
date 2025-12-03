@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
@@ -9,6 +10,9 @@ const authRoutes = require('./routes/auth');
 const leaderboardRoutes = require('./routes/leaderboard');
 
 const app = express();
+app.use(express.static(path.join(__dirname, '../')));
+
+const server = http.createServer(app);
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
