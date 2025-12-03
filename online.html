@@ -380,10 +380,6 @@
 
         <div id="debug-box"></div>
 
-        <div class="status-indicator" id="charge-indicator">⚠️ CHARGING!</div>
-        <div class="status-indicator" id="cooldown-indicator">⏳ COOLDOWN</div>
-        <div class="status-indicator" id="bomb-indicator" style="bottom: 110px; color: orange;">💣 BOMB READY</div>
-
         <div id="game-over">
             <h1 id="winner-msg">GAME OVER</h1>
             <p id="game-over-reason"></p>
@@ -588,8 +584,8 @@
 
             // Position Stamina Box (Follow Attacker)
             const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x + 8) + 'px';
-            els.staminaBox.style.bottom = (attacker.y + 0) + 'px';
+            els.staminaBox.style.left = (attacker.x - 8) + 'px';
+            els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
 
             // Indicators
             els.chargeInd.style.display = state.isCharging ? 'block' : 'none';
