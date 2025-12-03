@@ -13,7 +13,6 @@ const app = express();
 app.use(express.static(path.join(__dirname, '../')));
 
 const server = http.createServer(app);
-const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: process.env.FRONTEND_URL || 'http://localhost:8080',
