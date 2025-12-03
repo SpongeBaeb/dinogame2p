@@ -115,6 +115,19 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // [추가] 캐릭터 선택 시도 (중복 확인)
+        const success = roomManager.selectCharacter(roomId, socket.userId, charId);
+        if (!success) {
+            socket.emit('charSelectFail', { message: 'Character already taken' });
+            return; // 중복이면 여기서 중단
+        }
+
+        // [추가] 선택 성공 시 다른 플레이어에게 알림
+        io.to(roomId).emit('charSelectedUpdate', {
+            userId: socket.userId,
+            charId: charId
+        });
+
         // Store character selection
         const player = room.players.find(p => p.userId === socket.userId);
         if (player) {

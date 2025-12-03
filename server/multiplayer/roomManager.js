@@ -20,7 +20,8 @@ class RoomManager {
             host: hostPlayer,
             players: [hostPlayer],
             status: 'waiting', // waiting, ready, playing, finished
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            selectedChars: {}
         };
 
         this.rooms.set(roomId, room);
@@ -138,6 +139,25 @@ class RoomManager {
             return true;
         }
         return false;
+    }
+
+    selectCharacter(roomId, playerId, charId) {
+        const room = this.rooms.get(roomId);
+        if (!room) return false;
+
+        // 이미 누군가 이 캐릭터를 선택했는지 확인
+        const isTaken = Object.values(room.selectedChars).includes(charId);
+
+        // 내가 이미 선택한 캐릭터라면 변경 허용 (같은 캐릭터 다시 선택은 OK)
+        if (room.selectedChars[playerId] === charId) return true;
+
+        if (isTaken) {
+            return false; // 이미 다른 사람이 선택함
+        }
+
+        // 캐릭터 선택 등록
+        room.selectedChars[playerId] = charId;
+        return true;
     }
 }
 

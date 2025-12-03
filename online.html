@@ -380,6 +380,9 @@
 
         <div id="debug-box"></div>
 
+        <div class="status-indicator" id="charge-indicator" style="display: none;">⚠️ CHARGING!</div>
+        <div class="status-indicator" id="cooldown-indicator" style="display: none;">⏳ COOLDOWN</div>
+
         <div id="game-over">
             <h1 id="winner-msg">GAME OVER</h1>
             <p id="game-over-reason"></p>
@@ -484,6 +487,23 @@
             document.getElementById('opponent-status').textContent =
                 `Opponent: ${data.readyCount}/2 Ready`;
         });
+        // [추가] 캐릭터 선택 업데이트 (다른 플레이어가 선택했을 때)
+        socket.on('charSelectedUpdate', (data) => {
+            // 내가 아닌 다른 사람이 선택한 캐릭터라면 비활성화 목록에 추가
+            if (data.userId !== userId) {
+                // 이미 선택된 캐릭터 목록 관리 (전역 변수 필요)
+                if (!window.takenChars) window.takenChars = [];
+                window.takenChars.push(data.charId);
+                updateCharSelectUI(); // UI 갱신
+            }
+        });
+
+        // [추가] 캐릭터 선택 실패 (중복 선택 시)
+        socket.on('charSelectFail', (data) => {
+            alert(data.message); // "Character already taken" 알림
+            isCharSelected = false; // 선택 상태 해제
+            updateCharSelectUI();
+        });
 
         socket.on('gameStart', (data) => {
             charSelectScreen.style.display = 'none';
@@ -503,6 +523,7 @@
 
         // --- Character Selection ---
         function initCharSelect() {
+            window.takenChars = [];
             const grid = document.getElementById('char-grid');
             grid.innerHTML = '';
 
@@ -527,21 +548,31 @@
             updateCharSelectUI();
             requestAnimationFrame(animateCharSelect);
         }
-
         function updateCharSelectUI() {
             document.querySelectorAll('.char-card').forEach((card, index) => {
+                const charName = CONFIG.characters[index];
+                const isTaken = window.takenChars && window.takenChars.includes(charName);
+
+                // 선택된 카드 표시
                 if (index === selectedCharIndex) {
                     card.classList.add('selected');
                 } else {
                     card.classList.remove('selected');
                 }
 
-                if (isCharSelected) {
+                // 투명도 처리
+                if (isTaken) {
+                    card.style.opacity = '0.3'; // 이미 선택된 캐릭터는 흐리게
+                    card.style.filter = 'grayscale(100%)'; // 흑백 처리
+                } else if (isCharSelected) {
                     card.style.opacity = index === selectedCharIndex ? '1' : '0.5';
+                    card.style.filter = 'none';
+                } else {
+                    card.style.opacity = '1';
+                    card.style.filter = 'none';
                 }
             });
         }
-
         function animateCharSelect(timestamp) {
             if (charSelectScreen.style.display === 'none') return;
 
@@ -742,6 +773,17 @@
                     selectedCharIndex = (selectedCharIndex + 1) % CONFIG.characters.length;
                     updateCharSelectUI();
                 } else if (e.key === ' ' || e.key === 'Enter') {
+
+                    const charName = CONFIG.characters[selectedCharIndex];
+
+                    // [추가] 이미 선택된 캐릭터인지 확인
+                    if (window.takenChars && window.takenChars.includes(charName)) {
+                        const card = document.getElementById(`char-card-${selectedCharIndex}`);
+                        card.classList.add('charging'); // 기존 shake 애니메이션 재활용
+                        setTimeout(() => card.classList.remove('charging'), 200); // 0.2초 뒤 멈춤
+                        return;
+                        return;
+                    }
                     isCharSelected = true;
                     updateCharSelectUI();
                     socket.emit('playerReady', {
