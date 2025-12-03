@@ -1,6 +1,5 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
-const User = require('./models/User');
 
 const User = {
     // Create new user
@@ -50,9 +49,9 @@ const User = {
             'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
             [userId]
         );
-    }
+    },
 
-        // Update MMR
+    // Update MMR
     async updateMMR(userId, newMMR) {
         const result = await db.query(
             'UPDATE users SET mmr = $1 WHERE id = $2 RETURNING mmr',
