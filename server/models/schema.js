@@ -5,15 +5,20 @@ const initDatabase = async () => {
     try {
         // Users table
         await db.query(`
-            CREATE TABLE IF NOT EXISTS users (
+             CREATE TABLE IF NOT EXISTS users (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 username VARCHAR(50) UNIQUE NOT NULL,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
+                mmr INTEGER DEFAULT 1000, -- [추가] 기본 점수 1000점
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP
             );
         `);
+        try {
+            await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mmr INTEGER DEFAULT 1000;`);
+        } catch (e) { console.log('MMR column check skipped'); }
+
 
         // Scores table
         await db.query(`

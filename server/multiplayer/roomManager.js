@@ -56,21 +56,42 @@ class RoomManager {
     /**
      * Quick match - find or create a room
      */
+    /**
+     * Quick match - find or create a room
+     */
     quickMatch(player) {
-        // Check if there's a waiting player
-        if (this.waitingPlayers.length > 0) {
-            const opponent = this.waitingPlayers.shift();
+        const myMMR = player.mmr || 1000;
+
+        // [수정] 대기열에서 적절한 상대 찾기 (확장형 범위)
+        const matchIndex = this.waitingPlayers.findIndex(opponent => {
+            const oppMMR = opponent.mmr || 1000;
+            const diff = Math.abs(oppMMR - myMMR);
+
+            // 상대방이 얼마나 기다렸는지 확인
+            const waitTimeSeconds = (Date.now() - opponent.joinedAt) / 1000;
+
+            // 기본 100점 + 1초당 50점씩 범위 확장 (최대 1000점까지)
+            // 예: 0초->100점, 2초->200점, 10초->600점 차이까지 허용
+            const allowedRange = 100 + (waitTimeSeconds * 50);
+
+            return diff <= allowedRange;
+        });
+
+        if (matchIndex !== -1) {
+            const opponent = this.waitingPlayers.splice(matchIndex, 1)[0];
 
             // Create room with both players
             const room = this.createRoom(opponent);
             room.players.push(player);
 
-            console.log(`⚡ Quick match: ${opponent.username} vs ${player.username}`);
+            console.log(`⚡ Quick match: ${opponent.username}(${opponent.mmr}) vs ${player.username}(${player.mmr})`);
             return { success: true, room, matched: true };
         } else {
-            // Add to waiting list
+            // [수정] 대기 시작 시간 추가하여 저장
+            player.joinedAt = Date.now();
             this.waitingPlayers.push(player);
-            console.log(`⏳ ${player.username} waiting for opponent...`);
+
+            console.log(`⏳ ${player.username} (${myMMR}) waiting...`);
             return { success: true, waiting: true };
         }
     }

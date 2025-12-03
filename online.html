@@ -323,6 +323,9 @@
         <h1 style="color: #ffcc00; text-shadow: 2px 2px 0 #333; font-size: 48px; margin-bottom: 30px;">
             ONLINE MULTIPLAYER
         </h1>
+        <div id="my-rank" style="font-size: 18px; margin-bottom: 20px; color: #ffd700;">
+            Loading Rank...
+        </div>
 
         <div id="connection-status" style="font-size: 18px; margin-bottom: 20px; color: #aaa;">
             Connecting to server...
@@ -456,8 +459,13 @@
             socket.emit('authenticate', { userId, username });
         });
 
-        socket.on('authenticated', () => {
+        socket.on('authenticated', (data) => {
             quickMatchBtn.disabled = false;
+            if (data.mmr) {
+                const tier = getTier(data.mmr);
+                const rankEl = document.getElementById('my-rank');
+                rankEl.innerHTML = `<span style="color:${tier.color}">[${tier.name}]</span> ${data.mmr} MMR`;
+            }
         });
 
         socket.on('disconnect', () => {
@@ -521,7 +529,35 @@
             // For now, server handles logic, we just wait for next round start or game over
             // But we might want to show a "Round 2" overlay
         });
+        socket.on('mmrUpdate', (data) => {
+            // 내 새로운 MMR 확인
+            const newMMR = data[userId];
+            if (newMMR) {
+                const tier = getTier(newMMR);
 
+                // 로비 랭크 업데이트
+                const rankEl = document.getElementById('my-rank');
+                if (rankEl) {
+                    rankEl.innerHTML = `<span style="color:${tier.color}">[${tier.name}]</span> ${newMMR} MMR`;
+                }
+
+                // 게임 오버 메시지에 추가
+                const gameOverMsg = document.getElementById('winner-msg');
+                if (gameOverMsg) {
+                    gameOverMsg.innerHTML += `<br><span style="font-size:20px; color:${tier.color}">New MMR: ${newMMR}</span>`;
+                }
+            }
+        });
+
+        // [추가] 티어 계산 함수
+        function getTier(mmr) {
+            if (mmr < 1100) return { name: 'BRONZE', color: '#cd7f32' };
+            if (mmr < 1300) return { name: 'SILVER', color: '#c0c0c0' };
+            if (mmr < 1500) return { name: 'GOLD', color: '#ffd700' };
+            if (mmr < 1800) return { name: 'PLATINUM', color: '#00ced1' };
+            if (mmr < 2200) return { name: 'DIAMOND', color: '#b9f2ff' };
+            return { name: 'MASTER', color: '#ff00ff' };
+        }
         // --- Character Selection ---
         function initCharSelect() {
             window.takenChars = [];

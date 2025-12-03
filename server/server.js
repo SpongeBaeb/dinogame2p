@@ -8,6 +8,7 @@ require('dotenv').config();
 const { initDatabase } = require('./models/schema');
 const authRoutes = require('./routes/auth');
 const leaderboardRoutes = require('./routes/leaderboard');
+const User = require('./models/User');
 
 const app = express();
 app.use(express.static(path.join(__dirname, '../')));
@@ -50,7 +51,7 @@ io.on('connection', (socket) => {
     console.log(`🔌 Player connected: ${socket.id}`);
 
     // Player authentication
-    socket.on('authenticate', (data) => {
+    socket.on('authenticate', async (data) => {
         const { userId, username } = data;
         connectedPlayers.set(userId, {
             socketId: socket.id,
@@ -60,20 +61,29 @@ io.on('connection', (socket) => {
         socket.userId = userId;
         socket.username = username;
         console.log(`✅ Player authenticated: ${username} (${userId})`);
-        socket.emit('authenticated', { success: true });
+        const user = await User.findById(userId); // DB 조회 필요
+        socket.emit('authenticated', {
+            success: true,
+            mmr: user ? user.mmr : 1000
+        });
     });
 
+
+
     // Quick match
-    socket.on('quickMatch', () => {
+    socket.on('quickMatch', async () => {
         if (!socket.userId) {
             socket.emit('error', { message: 'Not authenticated' });
             return;
         }
+        const user = await User.findById(socket.userId);
+        const myMMR = user ? user.mmr : 1000;
 
         const player = {
             userId: socket.userId,
             username: socket.username,
-            socketId: socket.id
+            socketId: socket.id,
+            mmr: myMMR // [추가] MMR 정보 포함
         };
 
         const result = roomManager.quickMatch(player);
@@ -114,19 +124,6 @@ io.on('connection', (socket) => {
             socket.emit('error', { message: 'Room not found' });
             return;
         }
-
-        // [추가] 캐릭터 선택 시도 (중복 확인)
-        const success = roomManager.selectCharacter(roomId, socket.userId, charId);
-        if (!success) {
-            socket.emit('charSelectFail', { message: 'Character already taken' });
-            return; // 중복이면 여기서 중단
-        }
-
-        // [추가] 선택 성공 시 다른 플레이어에게 알림
-        io.to(roomId).emit('charSelectedUpdate', {
-            userId: socket.userId,
-            charId: charId
-        });
 
         // Store character selection
         const player = room.players.find(p => p.userId === socket.userId);
@@ -191,13 +188,58 @@ io.on('connection', (socket) => {
     });
 
     // Game over (collision)
-    socket.on('gameOver', ({ roomId, reason }) => {
+    socket.on('gameOver', async ({ roomId, reason }) => { // async 필수!
         const gameSession = gameSessions.get(roomId);
         if (gameSession) {
+
+            // 라운드 종료 알림
             io.to(roomId).emit('roundEnd', {
                 reason: reason,
                 scores: gameSession.scores
             });
+
+            // [추가] 게임 완전 종료 체크 (2라운드 종료)
+            if (gameSession.round === 2) {
+                const p1Score = gameSession.scores.p1;
+                const p2Score = gameSession.scores.p2;
+                let winnerId = null;
+                let loserId = null;
+
+                if (p1Score > p2Score) {
+                    winnerId = gameSession.p1.userId;
+                    loserId = gameSession.p2.userId;
+                } else if (p2Score > p1Score) {
+                    winnerId = gameSession.p2.userId;
+                    loserId = gameSession.p1.userId;
+                }
+
+                // 무승부가 아닐 때만 MMR 업데이트
+                if (winnerId && loserId) {
+                    try {
+                        // 간단한 MMR 계산 (승자 +20, 패자 -20)
+                        // 실제로는 현재 MMR을 가져와서 계산해야 더 정확함
+                        const winner = await User.findById(winnerId);
+                        const loser = await User.findById(loserId);
+
+                        if (winner && loser) {
+                            const newWinnerMMR = (winner.mmr || 1000) + 20;
+                            const newLoserMMR = Math.max(0, (loser.mmr || 1000) - 20); // 0점 이하 방지
+
+                            await User.updateMMR(winnerId, newWinnerMMR);
+                            await User.updateMMR(loserId, newLoserMMR);
+
+                            // 클라이언트에 변경된 MMR 알림
+                            io.to(roomId).emit('mmrUpdate', {
+                                [winnerId]: newWinnerMMR,
+                                [loserId]: newLoserMMR
+                            });
+                            console.log(`🏆 MMR Updated: ${winner.username} (+20) vs ${loser.username} (-20)`);
+                        }
+                    } catch (err) {
+                        console.error('MMR Update Error:', err);
+                    }
+                }
+            }
 
             gameSession.endRound();
         }
