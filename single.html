@@ -1417,13 +1417,11 @@
                         if (state.jumpCount === 2) {
                             spawnExplosion(p1Rect.x - 16, state.p1Y - 10);  // Below player
                         }
-                    } else if (state.p1Y > 40 && state.p1Vy > 0) {
-                        // Fast fall
-                        state.p1Vy = -5;
                     }
                 }
                 if (e.key === 's' || e.key === 'S') {
                     state.p1Sneak = true;
+                    if (state.p1Y > 40) state.p1Vy = -6;
                 }
             } else {
                 // P1 is Attacker

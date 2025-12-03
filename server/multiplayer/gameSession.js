@@ -126,36 +126,16 @@ class GameSession {
 
             this.gameState.p2.role = 'attacker';
             this.gameState.p2.x = 700;
-            this.gameState.p2.facingRight = false;
+            this.gameState.p2.facingRight = true;
             this.gameState.p2.score = 0; // Initialize score
         } else {
             this.gameState.p1.role = 'attacker';
-            this.gameState.p1.x = 50; // Attacker stays on left in R2? No, single.html swaps positions.
-            // In single.html R2: Runner (P2) is at 50, Attacker (P1) is at 700? 
-            // Let's check single.html: 
-            // R1: P1(Runner) x=60, P2(Attacker) x=700 (implied)
-            // R2: P1(Attacker) x=666, P2(Runner) x=50 (implied)
-            // Actually single.html says: if (state.round === 1) p1Rect.x = 60; else p1Rect.x = 666;
-            // And P2 is rendered at 700 or 50.
-
-            // Let's stick to: Runner is always on Left (50), Attacker on Right (700) for simplicity?
-            // No, single.html swaps sides. 
-            // R1: Runner(P1) Left, Attacker(P2) Right. Obstacles move Left.
-            // R2: Runner(P2) Left, Attacker(P1) Right. Obstacles move Left.
-            // Wait, single.html R2: "P1 is Attacker", "P2 is Runner".
-            // single.html line 1220: els.p2.style.left = ((state.round === 1 ? 700 : 50) - p2SpriteOffset) + 'px';
-            // So in R2, P2 (Runner) is at 50 (Left). P1 (Attacker) is at 666 (Right).
-            // So Runner is ALWAYS Left, Attacker is ALWAYS Right.
-
-            this.gameState.p1.role = 'attacker';
-            this.gameState.p1.x = 700;
+            this.gameState.p1.x = 50;
             this.gameState.p1.facingRight = false;
 
             this.gameState.p2.role = 'runner';
             this.gameState.p2.x = 50;
-            this.gameState.p2.facingRight = true;
-            this.gameState.p2.score = 0; // Initialize score
-            this.gameState.p1.score = 0; // Initialize score
+            this.gameState.p2.facingRight = false;
         }
 
         // Reset Physics
@@ -205,7 +185,7 @@ class GameSession {
         } else if (input.type === 'sneak_start') {
             p.isSneaking = true;
             // Fast fall if in air
-            if (p.y > 40) p.vy = -5;
+            if (p.y > 40) p.vy = -6;
         } else if (input.type === 'sneak_end') {
             p.isSneaking = false;
         }
@@ -305,8 +285,13 @@ class GameSession {
             const points = Math.floor(this.gameState.scoreAccumulator / 0.1);
             this.gameState.scoreAccumulator -= points * 0.1;
 
-            if (this.gameState.round === 1) this.gameState.p1.score += points;
-            else this.gameState.p2.score += points;
+            if (this.gameState.round === 1) {
+                this.gameState.p1.score += points;
+                this.scores.p1 = this.gameState.p1.score; // Sync for broadcast
+            } else {
+                this.gameState.p2.score += points;
+                this.scores.p2 = this.gameState.p2.score; // Sync for broadcast
+            }
         }
 
         // Dynamic Cooldowns
