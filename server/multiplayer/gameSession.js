@@ -132,16 +132,18 @@ class GameSession {
 
             this.gameState.p2.role = 'attacker';
             this.gameState.p2.x = 700;
-            this.gameState.p2.facingRight = true;
+            this.gameState.p2.facingRight = true; // Round 1 Attacker usually faces RIGHT
             this.gameState.p2.score = 0; // Initialize score
         } else {
             this.gameState.p1.role = 'attacker';
-            this.gameState.p1.x = 700;
-            this.gameState.p1.facingRight = false;
+            this.gameState.p1.x = 50;
+            this.gameState.p1.facingRight = false; // Round 2 Attacker usually faces LEFT
 
             this.gameState.p2.role = 'runner';
-            this.gameState.p2.x = 50;
-            this.gameState.p2.facingRight = false;
+            this.gameState.p2.x = 700;
+            this.gameState.p2.facingRight = false; // Runner facing? User didn't specify, keeping as is or default.
+            // Actually, if P2 is runner at 700, they should face Left?
+            // User only specified Attacker logic. I will stick to Attacker changes.
         }
 
         // Reset Physics
@@ -332,22 +334,26 @@ class GameSession {
         // 3. Cooldowns & Recoil
         if (this.gameState.cooldowns.wall > 0) this.gameState.cooldowns.wall -= deltaTime * 1000;
         if (this.gameState.cooldowns.bullet > 0) this.gameState.cooldowns.bullet -= deltaTime * 1000;
+
         if (this.gameState.recoilTimer > 0) {
             this.gameState.recoilTimer--;
-            // Update facing direction for attacker
-            const attacker = this.gameState.round === 1 ? this.gameState.p2 : this.gameState.p1;
-            // Normal facing: R1 P2(Attacker) Left(false), R2 P1(Attacker) Left(false)
-            // Wait, in R2 P1 is Attacker at 700, facing Left(false).
-            // Recoil means look BACKWARDS.
-            // If facing Left, backward is Right.
-            // If facing Right, backward is Left.
-            // Attacker always faces Left (false) normally.
-            // So during recoil, face Right (true).
-            attacker.facingRight = true;
+            // Recoil Facing
+            if (this.gameState.round === 1) {
+                // Round 1 (P2 Attacker): Recoil -> Face LEFT
+                this.gameState.p2.facingRight = false;
+            } else {
+                // Round 2 (P1 Attacker): Recoil -> Face RIGHT
+                this.gameState.p1.facingRight = true;
+            }
         } else {
-            // Reset facing
-            const attacker = this.gameState.round === 1 ? this.gameState.p2 : this.gameState.p1;
-            attacker.facingRight = false; // Always face left when not recoiling
+            // Normal Facing
+            if (this.gameState.round === 1) {
+                // Round 1 (P2 Attacker): Normal -> Face RIGHT
+                this.gameState.p2.facingRight = true;
+            } else {
+                // Round 2 (P1 Attacker): Normal -> Face LEFT
+                this.gameState.p1.facingRight = false;
+            }
         }
 
         // 4. Physics (Gravity)
