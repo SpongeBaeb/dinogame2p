@@ -214,14 +214,16 @@ class GameSession {
                 this.gameState.recoilTimer = CONFIG.recoilDuration; // Set recoil timer
 
                 // Spawn Bullet
-                // Runner is at 50, Attacker at 700. Bullet moves Left (-speed).
-                // Spawn height random? single.html says 70.
+                const isRound1 = this.gameState.round === 1;
+                const spawnX = isRound1 ? p.x - 20 : p.x + 40; // R1: Left of P2, R2: Right of P1
+                const speed = isRound1 ? (-this.gameState.speed - 3) : (this.gameState.speed + 3);
+
                 this.spawnObstacle({
                     type: 'bullet',
-                    x: p.x - 20,
+                    x: spawnX,
                     y: 70, // Fixed height for now, or random
                     w: 48, h: 12,
-                    speed: -this.gameState.speed - 3 // Faster than ground
+                    speed: speed
                 });
             }
         } else if (input.type === 'charge_start') {
@@ -250,8 +252,9 @@ class GameSession {
             this.gameState.cooldowns.wall = CONFIG.wallCooldown;
 
             // Spawn Wall
-            // Attacker is at 700. Wall moves Left.
-            const attackerX = this.gameState.round === 1 ? 700 : 700; // Always right side for attacker
+            const isRound1 = this.gameState.round === 1;
+            const attackerX = isRound1 ? 700 : 50;
+            const speed = isRound1 ? -this.gameState.speed : this.gameState.speed;
 
             this.spawnObstacle({
                 type: 'wall',
@@ -259,7 +262,7 @@ class GameSession {
                 y: 40,
                 w: 20,
                 h: 40, // Default height, could be variable
-                speed: -this.gameState.speed
+                speed: speed
             });
         }
     }
@@ -400,7 +403,7 @@ class GameSession {
             }
 
             // Remove if off screen
-            if (obs.x < -100) {
+            if (obs.x < -100 || obs.x > 900) {
                 this.gameState.obstacles.splice(i, 1);
                 // Score?
                 if (this.gameState.round === 1) this.gameState.p1.score += 100;

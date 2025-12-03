@@ -351,163 +351,27 @@
             <div id="char-grid"></div>
             <div class="controls-hint">
                 <div class="p1-hint">Use ARROW KEYS to select, SPACE to confirm</div>
-                <div id="opponent-status" style="margin-top:10px; color:#aaa;">Waiting for opponent...</div>
-            </div>
-        </div>
+                charSelectScreen.style.display = 'none';
+                // Preload assets if needed
+                startGameLoop();
+                });
 
-        <div id="ui-layer">
-            <div id="p1-status">
-                <div style="color:#007bff; font-weight:bold; margin-bottom:5px;">PLAYER 1</div>
-                <div class="large-score" id="p1-score">0</div>
-            </div>
-            <div id="timer">60</div>
-            <div id="p2-status">
-                <div style="color:#ff4444; font-weight:bold; margin-bottom:5px;">PLAYER 2</div>
-                <div class="large-score" id="p2-score">0</div>
-            </div>
-        </div>
+                socket.on('gameState', (serverState) => {
+                renderGame(serverState);
+                });
 
-        <div id="ground"></div>
-        <div id="obstacles-layer"></div>
-        <div id="stamina-box">
-            <div id="stamina-bar"></div>
-            <div id="stamina-text">100</div>
-        </div>
-        <div id="player1" class="pixel-art"></div>
-        <div id="player2" class="pixel-art"></div>
+                socket.on('roundEnd', (data) => {
+                // Show round end message?
+                // For now, server handles logic, we just wait for next round start or game over
+                // But we might want to show a "Round 2" overlay
+                });
 
-        <div id="debug-box"></div>
+                // --- Character Selection ---
+                function initCharSelect() {
+                const grid = document.getElementById('char-grid');
+                grid.innerHTML = '';
 
-        <div class="status-indicator" id="charge-indicator">⚠️ CHARGING!</div>
-        <div class="status-indicator" id="cooldown-indicator">⏳ COOLDOWN</div>
-        <div class="status-indicator" id="bomb-indicator" style="bottom: 110px; color: orange;">💣 BOMB READY</div>
-
-        <div id="game-over">
-            <h1 id="winner-msg">GAME OVER</h1>
-            <p id="game-over-reason"></p>
-            <button onclick="location.reload()" class="btn">🔄 Play Again</button>
-        </div>
-    </div>
-
-    <script>
-        // --- Configuration & Auth ---
-        const API_URL = window.location.origin;
-        const authToken = localStorage.getItem('authToken');
-        const username = localStorage.getItem('username');
-        const userId = localStorage.getItem('userId');
-
-        if (!authToken || !username || !userId) {
-            alert('Please login to play online mode');
-            window.location.href = 'login.html';
-        }
-
-        // --- Socket.IO ---
-        const socket = io(API_URL);
-
-        // --- DOM Elements ---
-        const lobbyScreen = document.getElementById('lobby-screen');
-        const gameContainer = document.getElementById('game-container');
-        const charSelectScreen = document.getElementById('char-select');
-        const connectionStatus = document.getElementById('connection-status');
-        const quickMatchBtn = document.getElementById('quick-match-btn');
-        const cancelMatchBtn = document.getElementById('cancel-match-btn');
-        const matchStatus = document.getElementById('match-status');
-
-        const els = {
-            p1: document.getElementById('player1'),
-            p2: document.getElementById('player2'),
-            ground: document.getElementById('ground'),
-            obsLayer: document.getElementById('obstacles-layer'),
-            timer: document.getElementById('timer'),
-            p1Score: document.getElementById('p1-score'),
-            p2Score: document.getElementById('p2-score'),
-            staminaBox: document.getElementById('stamina-box'),
-            staminaBar: document.getElementById('stamina-bar'),
-            staminaText: document.getElementById('stamina-text'),
-            chargeInd: document.getElementById('charge-indicator'),
-            coolInd: document.getElementById('cooldown-indicator'),
-            gameOver: document.getElementById('game-over'),
-            winnerMsg: document.getElementById('winner-msg'),
-            gameOverReason: document.getElementById('game-over-reason')
-        };
-
-        // --- Game State ---
-        let currentRoom = null;
-        let myRole = null; // 'player1' or 'player2'
-        let myUserId = userId;
-        let gameLoopId;
-        let groundScrollX = 0;
-        let obstaclePool = [];
-        let explosionPool = [];
-        let currentRound = 1; // Moved to top level
-
-        // Character Selection State
-        let selectedCharIndex = 0;
-        let isCharSelected = false;
-        let selAnimFrame = 0;
-        let selAnimTimer = 0;
-
-        // --- Socket Events ---
-        socket.on('connect', () => {
-            connectionStatus.textContent = `✅ Connected as ${username}`;
-            connectionStatus.style.color = '#4caf50';
-            socket.emit('authenticate', { userId, username });
-        });
-
-        socket.on('authenticated', () => {
-            quickMatchBtn.disabled = false;
-        });
-
-        socket.on('disconnect', () => {
-            connectionStatus.textContent = '❌ Disconnected';
-            connectionStatus.style.color = '#ff4444';
-            quickMatchBtn.disabled = true;
-        });
-
-        socket.on('waitingForOpponent', () => {
-            quickMatchBtn.style.display = 'none';
-            cancelMatchBtn.style.display = 'inline-block';
-            matchStatus.textContent = '⏳ Searching for opponent...';
-        });
-
-        socket.on('matchFound', (data) => {
-            currentRoom = data.roomId;
-            myRole = data.player1.userId === userId ? 'player1' : 'player2';
-
-            lobbyScreen.style.display = 'none';
-            gameContainer.style.display = 'block';
-            charSelectScreen.style.display = 'flex';
-
-            initCharSelect();
-        });
-
-        socket.on('playerReadyUpdate', (data) => {
-            document.getElementById('opponent-status').textContent =
-                `Opponent: ${data.readyCount}/2 Ready`;
-        });
-
-        socket.on('gameStart', (data) => {
-            charSelectScreen.style.display = 'none';
-            // Preload assets if needed
-            startGameLoop();
-        });
-
-        socket.on('gameState', (serverState) => {
-            renderGame(serverState);
-        });
-
-        socket.on('roundEnd', (data) => {
-            // Show round end message? 
-            // For now, server handles logic, we just wait for next round start or game over
-            // But we might want to show a "Round 2" overlay
-        });
-
-        // --- Character Selection ---
-        function initCharSelect() {
-            const grid = document.getElementById('char-grid');
-            grid.innerHTML = '';
-
-            CONFIG.characters.forEach((char, index) => {
+                CONFIG.characters.forEach((char, index) => {
                 const card = document.createElement('div');
                 card.className = 'char-card';
                 card.id = `char-card-${index}`;
@@ -523,284 +387,265 @@
                 card.appendChild(preview);
                 card.appendChild(name);
                 grid.appendChild(card);
-            });
+                });
 
-            updateCharSelectUI();
-            requestAnimationFrame(animateCharSelect);
-        }
+                updateCharSelectUI();
+                requestAnimationFrame(animateCharSelect);
+                }
 
-        function updateCharSelectUI() {
-            document.querySelectorAll('.char-card').forEach((card, index) => {
+                function updateCharSelectUI() {
+                document.querySelectorAll('.char-card').forEach((card, index) => {
                 if (index === selectedCharIndex) {
-                    card.classList.add('selected');
+                card.classList.add('selected');
                 } else {
-                    card.classList.remove('selected');
+                card.classList.remove('selected');
                 }
 
                 if (isCharSelected) {
-                    card.style.opacity = index === selectedCharIndex ? '1' : '0.5';
+                card.style.opacity = index === selectedCharIndex ? '1' : '0.5';
                 }
-            });
-        }
+                });
+                }
 
-        function animateCharSelect(timestamp) {
-            if (charSelectScreen.style.display === 'none') return;
+                function animateCharSelect(timestamp) {
+                if (charSelectScreen.style.display === 'none') return;
 
-            // Animate sprites
-            if (!selAnimTimer) selAnimTimer = timestamp;
-            if (timestamp - selAnimTimer > 150) {
+                // Animate sprites
+                if (!selAnimTimer) selAnimTimer = timestamp;
+                if (timestamp - selAnimTimer > 150) {
                 selAnimFrame = (selAnimFrame + 1) % 4;
                 selAnimTimer = timestamp;
 
                 document.querySelectorAll('.char-preview').forEach((el, index) => {
-                    el.style.backgroundPosition = `-${selAnimFrame * 64}px 0`;
+                el.style.backgroundPosition = `-${selAnimFrame * 64}px 0`;
                 });
-            }
-
-            requestAnimationFrame(animateCharSelect);
-        }
-
-        // --- Game Rendering ---
-        function startGameLoop() {
-            // Nothing to do here really, as we render on server updates
-            // But we might want to interpolate?
-            // For now, just rely on socket 'gameState' events
-        }
-
-        function renderGame(state) {
-            // Update Round
-            currentRound = state.round;
-
-            // 1. UI Updates
-            els.timer.innerText = state.timer;
-            if (state.timer <= 10) els.timer.classList.add('warning');
-            else els.timer.classList.remove('warning');
-
-            els.p1Score.innerText = state.scores.p1;
-            els.p2Score.innerText = state.scores.p2;
-
-            // Stamina Bar
-            els.staminaBar.style.width = state.stamina + '%';
-            els.staminaText.innerText = Math.floor(state.stamina);
-
-            // Position Stamina Box (Follow Attacker)
-            const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x) + 'px';
-            els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
-
-            // Indicators
-            els.chargeInd.style.display = state.isCharging ? 'block' : 'none';
-            els.coolInd.style.display = (state.cooldowns.wall > 0 || state.cooldowns.bullet > 0) ? 'block' : 'none';
-
-            // 2. Render Players
-            renderPlayer(els.p1, state.p1, state.cooldowns);
-            renderPlayer(els.p2, state.p2, state.cooldowns);
-
-            // 3. Render Obstacles
-            renderObstacles(state.obstacles);
-
-            // 4. Render Explosions
-            renderExplosions(state.explosions);
-
-            // 5. Ground Scroll
-            if (state.round === 1) {
-                groundScrollX = (groundScrollX + state.speed) % 800;
-            } else {
-                groundScrollX = (groundScrollX - state.speed + 800) % 800;
-            }
-            els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
-
-            // 6. Game Over
-            if (!state.isPlaying && state.timer <= 0 && state.round === 2) {
-                let winner = "";
-                if (state.scores.p1 > state.scores.p2) winner = "PLAYER 1 WINS!";
-                else if (state.scores.p2 > state.scores.p1) winner = "PLAYER 2 WINS!";
-                else winner = "DRAW!";
-
-                els.winnerMsg.innerText = winner;
-                els.gameOverReason.innerText = `Score: ${state.scores.p1} - ${state.scores.p2}`;
-                els.gameOver.style.display = 'flex';
-            }
-        }
-
-        function renderPlayer(el, pState, cooldowns) {
-            if (!pState) return; // Safety check
-
-            el.style.backgroundImage = `url('assets/${pState.char}.png')`;
-
-            // Determine Frame
-            let frameIndex = 0;
-            const now = Date.now();
-            const runFrame = Math.floor(now / 100) % 6;
-
-            if (pState.isJumping) {
-                frameIndex = 12; // Jump
-            } else if (pState.isSneaking) {
-                frameIndex = 18 + runFrame; // Sneak
-            } else {
-                frameIndex = 4 + runFrame; // Run
-            }
-
-            el.style.backgroundPosition = `-${frameIndex * 64}px 0`;
-
-            // Position
-            const spriteOffset = 16; // (64-32)/2
-            el.style.left = (pState.x - spriteOffset) + 'px';
-            el.style.bottom = (pState.y - spriteOffset) + 'px';
-
-            // Transform (Flip/Rotate)
-            const scaleX = pState.facingRight ? 1 : -1;
-            const rotate = (pState.role === 'runner' && pState.isJumping) ? -pState.vy * 2 : 0;
-
-            el.style.transform = `scaleX(${scaleX}) rotate(${rotate}deg)`;
-
-            // Cooldown effect
-            if (pState.role === 'attacker' && (cooldowns?.wall > 0 || cooldowns?.bullet > 0)) {
-                el.classList.add('cooldown');
-            } else {
-                el.classList.remove('cooldown');
-            }
-        }
-
-        function renderObstacles(obstacles) {
-            // Hide all existing
-            obstaclePool.forEach(el => el.style.display = 'none');
-
-            obstacles.forEach((obs, index) => {
-                let el = obstaclePool[index];
-                if (!el) {
-                    el = document.createElement('div');
-                    els.obsLayer.appendChild(el);
-                    obstaclePool.push(el);
                 }
 
-                el.style.display = 'block';
-                el.className = 'obstacle ' + obs.type;
-
-                if (obs.type === 'bullet') {
-                    el.style.width = '96px';
-                    el.style.height = '96px';
-                    el.style.backgroundImage = "url('assets/fireball.png')";
-                    el.style.backgroundSize = 'auto 96px';
-                    // Animation
-                    const frame = Math.floor(Date.now() / 50) % 14;
-                    el.style.backgroundPosition = `-${frame * 96}px 0`;
-
-                    el.style.left = (obs.x - 24) + 'px'; // Center adjustment
-                    el.style.bottom = (obs.y - 42) + 'px';
-
-                    // Flip based on direction (speed < 0 means moving left)
-                    el.style.transform = obs.speed < 0 ? 'scaleX(-1)' : 'scaleX(1)';
-                } else {
-                    el.style.width = obs.w + 'px';
-                    el.style.height = obs.h + 'px';
-                    el.style.backgroundImage = "url('assets/wall.png')";
-                    el.style.backgroundSize = '20px auto';
-                    el.style.left = obs.x + 'px';
-                    el.style.bottom = obs.y + 'px';
-                    el.style.transform = 'none';
+                requestAnimationFrame(animateCharSelect);
                 }
-            });
-        }
 
-        function renderExplosions(explosions) {
-            explosions.forEach((exp, index) => {
-                const el = document.createElement('div');
-                el.style.position = 'absolute';
-                el.style.width = '48px';
-                el.style.height = '48px';
-                el.style.backgroundImage = "url('assets/explosion.png')";
-                el.style.backgroundSize = 'auto 48px';
-                el.style.imageRendering = 'pixelated';
-                el.style.zIndex = '12';
-                el.style.left = (exp.x - 8) + 'px';
-                el.style.bottom = (exp.y - 8) + 'px';
-                els.obsLayer.appendChild(el);
+                // --- Game Rendering ---
+                function startGameLoop() {
+                // Nothing to do here really, as we render on server updates
+                // But we might want to interpolate?
+                // For now, just rely on socket 'gameState' events
+                }
 
-                // Animate
-                let frame = 0;
-                const interval = setInterval(() => {
-                    frame++;
-                    if (frame >= 9) {
-                        clearInterval(interval);
-                        el.remove();
+                function renderGame(state) {
+                // Update Round
+                currentRound = state.round;
+
+                // 1. UI Updates
+                els.timer.innerText = state.timer;
+                if (state.timer <= 10) els.timer.classList.add('warning'); else els.timer.classList.remove('warning');
+                    els.p1Score.innerText=state.scores.p1; els.p2Score.innerText=state.scores.p2; // Stamina Bar
+                    els.staminaBar.style.width=state.stamina + '%' ;
+                    els.staminaText.innerText=Math.floor(state.stamina); // Position Stamina Box (Follow Attacker) const
+                    attacker=state.round===1 ? state.p2 : state.p1; els.staminaBox.style.left=(attacker.x) + 'px' ;
+                    els.staminaBox.style.bottom=(attacker.y + 40) + 'px' ; // Indicators
+                    els.chargeInd.style.display=state.isCharging ? 'block' : 'none' ;
+                    els.coolInd.style.display=(state.cooldowns.wall> 0 || state.cooldowns.bullet > 0) ? 'block' :
+                    'none';
+
+                    // 2. Render Players
+                    renderPlayer(els.p1, state.p1, state.cooldowns);
+                    renderPlayer(els.p2, state.p2, state.cooldowns);
+
+                    // 3. Render Obstacles
+                    renderObstacles(state.obstacles);
+
+                    // 4. Render Explosions
+                    renderExplosions(state.explosions);
+
+                    // 5. Ground Scroll
+                    if (state.round === 1) {
+                    groundScrollX = (groundScrollX + state.speed) % 800;
                     } else {
-                        el.style.backgroundPosition = `-${frame * 48}px 0`;
+                    groundScrollX = (groundScrollX - state.speed + 800) % 800;
                     }
-                }, 50);
-            });
-        }
+                    els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
 
-        // --- Input Handling ---
-        window.addEventListener('keydown', (e) => {
-            if (charSelectScreen.style.display !== 'none') {
-                if (isCharSelected) return;
+                    // 6. Game Over
+                    if (!state.isPlaying && state.timer <= 0 && state.round===2) { let winner="" ; if (state.scores.p1>
+                        state.scores.p2) winner = "PLAYER 1 WINS!";
+                        else if (state.scores.p2 > state.scores.p1) winner = "PLAYER 2 WINS!";
+                        else winner = "DRAW!";
 
-                if (e.key === 'ArrowLeft') {
-                    selectedCharIndex = (selectedCharIndex - 1 + CONFIG.characters.length) % CONFIG.characters.length;
-                    updateCharSelectUI();
-                } else if (e.key === 'ArrowRight') {
-                    selectedCharIndex = (selectedCharIndex + 1) % CONFIG.characters.length;
-                    updateCharSelectUI();
-                } else if (e.key === ' ' || e.key === 'Enter') {
-                    isCharSelected = true;
-                    updateCharSelectUI();
-                    socket.emit('playerReady', {
-                        roomId: currentRoom,
-                        charId: CONFIG.characters[selectedCharIndex]
-                    });
-                }
-                return;
-            }
+                        els.winnerMsg.innerText = winner;
+                        els.gameOverReason.innerText = `Score: ${state.scores.p1} - ${state.scores.p2}`;
+                        els.gameOver.style.display = 'flex';
+                        }
+                        }
 
-            if (!currentRoom) return;
+                        function renderPlayer(el, pState, cooldowns) {
+                        if (!pState) return; // Safety check
 
-            if (e.repeat) return; // Ignore hold for some keys
+                        el.style.backgroundImage = `url('assets/${pState.char}.png')`;
 
-            const isP1 = myRole === 'player1';
-            const isRunner = (isP1 && currentRound === 1) || (!isP1 && currentRound === 2);
+                        // Determine Frame
+                        let frameIndex = 0;
+                        const now = Date.now();
+                        const runFrame = Math.floor(now / 100) % 6;
 
-            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
-                if (isRunner) {
-                    socket.emit('playerInput', { roomId: currentRoom, input: { type: 'jump' } });
-                } else {
-                    socket.emit('playerInput', { roomId: currentRoom, input: { type: 'fire_bullet' } });
-                }
-            }
+                        if (pState.isJumping) {
+                        frameIndex = 12; // Jump
+                        } else if (pState.isSneaking) {
+                        frameIndex = 18 + runFrame; // Sneak
+                        } else {
+                        frameIndex = 4 + runFrame; // Run
+                        }
 
-            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
-                if (isRunner) {
-                    socket.emit('playerInput', { roomId: currentRoom, input: { type: 'sneak_start' } });
-                } else {
-                    socket.emit('playerInput', { roomId: currentRoom, input: { type: 'charge_start' } });
-                }
-            }
-        });
+                        el.style.backgroundPosition = `-${frameIndex * 64}px 0`;
 
-        window.addEventListener('keyup', (e) => {
-            if (charSelectScreen.style.display !== 'none') return;
+                        // Position
+                        const spriteOffset = 16; // (64-32)/2
+                        el.style.left = (pState.x - spriteOffset) + 'px';
+                        el.style.bottom = (pState.y - spriteOffset) + 'px';
 
-            const isP1 = myRole === 'player1';
-            const isRunner = (isP1 && currentRound === 1) || (!isP1 && currentRound === 2);
+                        // Transform (Flip/Rotate)
+                        const scaleX = pState.facingRight ? 1 : -1;
+                        const rotate = (pState.role === 'runner' && pState.isJumping) ? -pState.vy * 2 : 0;
 
-            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
-                if (isRunner) {
-                    socket.emit('playerInput', { roomId: currentRoom, input: { type: 'sneak_end' } });
-                } else {
-                    socket.emit('playerInput', { roomId: currentRoom, input: { type: 'charge_end' } });
-                }
-            }
-        });
+                        el.style.transform = `scaleX(${scaleX}) rotate(${rotate}deg)`;
 
-        // Button Events
-        quickMatchBtn.addEventListener('click', () => {
-            socket.emit('quickMatch');
-        });
+                        // Cooldown effect
+                        if (pState.role === 'attacker' && (cooldowns?.wall > 0 || cooldowns?.bullet > 0)) {
+                        el.classList.add('cooldown');
+                        } else {
+                        el.classList.remove('cooldown');
+                        }
+                        }
 
-        cancelMatchBtn.addEventListener('click', () => {
-            socket.emit('cancelWaiting');
-        });
-    </script>
+                        function renderObstacles(obstacles) {
+                        // Hide all existing
+                        obstaclePool.forEach(el => el.style.display = 'none');
+
+                        obstacles.forEach((obs, index) => {
+                        let el = obstaclePool[index];
+                        if (!el) {
+                        el = document.createElement('div');
+                        els.obsLayer.appendChild(el);
+                        obstaclePool.push(el);
+                        }
+
+                        el.style.display = 'block';
+                        el.className = 'obstacle ' + obs.type;
+
+                        if (obs.type === 'bullet') {
+                        el.style.width = '96px';
+                        el.style.height = '96px';
+                        el.style.backgroundImage = "url('assets/fireball.png')";
+                        el.style.backgroundSize = 'auto 96px';
+                        // Animation
+                        const frame = Math.floor(Date.now() / 50) % 14;
+                        el.style.backgroundPosition = `-${frame * 96}px 0`;
+
+                        el.style.left = (obs.x - 24) + 'px'; // Center adjustment
+                        el.style.bottom = (obs.y - 42) + 'px';
+
+                        // Flip based on direction (speed < 0 means moving left) el.style.transform=obs.speed < 0
+                            ? 'scaleX(-1)' : 'scaleX(1)' ; } else { el.style.width=obs.w + 'px' ; el.style.height=obs.h
+                            + 'px' ; el.style.backgroundImage="url('assets/wall.png')" ;
+                            el.style.backgroundSize='20px auto' ; el.style.left=obs.x + 'px' ; el.style.bottom=obs.y
+                            + 'px' ; el.style.transform='none' ; } }); } function renderExplosions(explosions) {
+                            explosions.forEach((exp, index)=> {
+                            const el = document.createElement('div');
+                            el.style.position = 'absolute';
+                            el.style.width = '48px';
+                            el.style.height = '48px';
+                            el.style.backgroundImage = "url('assets/explosion.png')";
+                            el.style.backgroundSize = 'auto 48px';
+                            el.style.imageRendering = 'pixelated';
+                            el.style.zIndex = '12';
+                            el.style.left = (exp.x - 8) + 'px';
+                            el.style.bottom = (exp.y - 8) + 'px';
+                            els.obsLayer.appendChild(el);
+
+                            // Animate
+                            let frame = 0;
+                            const interval = setInterval(() => {
+                            frame++;
+                            if (frame >= 9) {
+                            clearInterval(interval);
+                            el.remove();
+                            } else {
+                            el.style.backgroundPosition = `-${frame * 48}px 0`;
+                            }
+                            }, 50);
+                            });
+                            }
+
+                            // --- Input Handling ---
+                            window.addEventListener('keydown', (e) => {
+                            if (charSelectScreen.style.display !== 'none') {
+                            if (isCharSelected) return;
+
+                            if (e.key === 'ArrowLeft') {
+                            selectedCharIndex = (selectedCharIndex - 1 + CONFIG.characters.length) %
+                            CONFIG.characters.length;
+                            updateCharSelectUI();
+                            } else if (e.key === 'ArrowRight') {
+                            selectedCharIndex = (selectedCharIndex + 1) % CONFIG.characters.length;
+                            updateCharSelectUI();
+                            } else if (e.key === ' ' || e.key === 'Enter') {
+                            isCharSelected = true;
+                            updateCharSelectUI();
+                            socket.emit('playerReady', {
+                            roomId: currentRoom,
+                            charId: CONFIG.characters[selectedCharIndex]
+                            });
+                            }
+                            return;
+                            }
+
+                            if (!currentRoom) return;
+
+                            if (e.repeat) return; // Ignore hold for some keys
+
+                            const isP1 = myRole === 'player1';
+                            const isRunner = (isP1 && currentRound === 1) || (!isP1 && currentRound === 2);
+
+                            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+                            if (isRunner) {
+                            socket.emit('playerInput', { roomId: currentRoom, input: { type: 'jump' } });
+                            } else {
+                            socket.emit('playerInput', { roomId: currentRoom, input: { type: 'fire_bullet' } });
+                            }
+                            }
+
+                            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
+                            if (isRunner) {
+                            socket.emit('playerInput', { roomId: currentRoom, input: { type: 'sneak_start' } });
+                            } else {
+                            socket.emit('playerInput', { roomId: currentRoom, input: { type: 'charge_start' } });
+                            }
+                            }
+                            });
+
+                            window.addEventListener('keyup', (e) => {
+                            if (charSelectScreen.style.display !== 'none') return;
+
+                            const isP1 = myRole === 'player1';
+                            const isRunner = (isP1 && currentRound === 1) || (!isP1 && currentRound === 2);
+
+                            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
+                            if (isRunner) {
+                            socket.emit('playerInput', { roomId: currentRoom, input: { type: 'sneak_end' } });
+                            } else {
+                            socket.emit('playerInput', { roomId: currentRoom, input: { type: 'charge_end' } });
+                            }
+                            }
+                            });
+
+                            // Button Events
+                            quickMatchBtn.addEventListener('click', () => {
+                            socket.emit('quickMatch');
+                            });
+
+                            cancelMatchBtn.addEventListener('click', () => {
+                            socket.emit('cancelWaiting');
+                            });
+                            </script>
 </body>
 
 </html>
