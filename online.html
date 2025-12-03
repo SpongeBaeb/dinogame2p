@@ -391,7 +391,7 @@
 
     <script>
         // --- Configuration & Auth ---
-        const API_URL = 'http://localhost:3000';
+        const API_URL = window.location.origin;
         const authToken = localStorage.getItem('authToken');
         const username = localStorage.getItem('username');
         const userId = localStorage.getItem('userId');
