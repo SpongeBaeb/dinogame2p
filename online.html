@@ -475,8 +475,18 @@
         socket.on('matchFound', (data) => {
             currentRoom = data.roomId;
             myRole = data.player1.userId === userId ? 'player1' : 'player2';
+            document.getElementById('p1-name').innerText = data.player1.username;
+            document.getElementById('p2-name').innerText = data.player2.username;
+            lobbyScreen.style.display = 'none';
+            gameContainer.style.display = 'block';
+            charSelectScreen.style.display = 'flex';
 
-            // --- 여기부터 추가 ---
+            initCharSelect();
+        });
+
+        socket.on('playerReadyUpdate', (data) => {
+            document.getElementById('opponent-status').textContent =
+                `Opponent: ${data.readyCount}/2 Ready`;
         });
 
         socket.on('gameStart', (data) => {
@@ -574,12 +584,12 @@
 
             // Stamina Bar
             els.staminaBar.style.width = state.stamina + '%';
-            els.staminaText.innerText = Math.floor(state.stamina);
+            els.staminaText.innerText = Math.floor(state.stamina) + '%';
 
             // Position Stamina Box (Follow Attacker)
             const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x) + 'px';
-            els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
+            els.staminaBox.style.left = (attacker.x + 8) + 'px';
+            els.staminaBox.style.bottom = (attacker.y + 0) + 'px';
 
             // Indicators
             els.chargeInd.style.display = state.isCharging ? 'block' : 'none';
