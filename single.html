@@ -1331,7 +1331,7 @@
                 els.p1Score.innerText = (state.round === 1) ? state.score : state.scores.p1;
                 els.p2Score.innerText = (state.round === 2) ? state.score : state.scores.p2;
                 els.staminaBar.style.width = state.stamina + '%';
-                els.staminaText.innerText = Math.floor(state.stamina) + '%';
+                els.staminaText.innerText = Math.floor(state.stamina);
             }
 
             // Ground Scroll (Simple background)

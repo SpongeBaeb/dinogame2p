@@ -89,7 +89,12 @@ class GameSession {
             },
             isCharging: false,
             chargeStart: 0,
-            lastActionTime: 0
+            isCharging: false,
+            chargeStart: 0,
+            lastActionTime: 0,
+            recoilTimer: 0 // Shared recoil timer (or per player?) - Attacker is unique, so shared is fine or put in player state.
+            // Actually, since roles swap, maybe put it in global state or check role.
+            // Let's put it in global since only one attacker at a time.
         };
 
         this.lastUpdate = Date.now();
@@ -115,6 +120,7 @@ class GameSession {
         this.gameState.isCharging = false;
         this.gameState.cooldowns.wall = 0;
         this.gameState.cooldowns.bullet = 0;
+        this.gameState.recoilTimer = 0;
         this.startTime = Date.now(); // Reset start time for speed scaling
 
         // Reset Positions & Roles
@@ -130,7 +136,7 @@ class GameSession {
             this.gameState.p2.score = 0; // Initialize score
         } else {
             this.gameState.p1.role = 'attacker';
-            this.gameState.p1.x = 50;
+            this.gameState.p1.x = 700;
             this.gameState.p1.facingRight = false;
 
             this.gameState.p2.role = 'runner';
@@ -203,6 +209,7 @@ class GameSession {
                 // Recoil Jump
                 p.vy = CONFIG.recoilJumpForce;
                 p.isJumping = true;
+                this.gameState.recoilTimer = CONFIG.recoilDuration; // Set recoil timer
 
                 // Spawn Bullet
                 // Runner is at 50, Attacker at 700. Bullet moves Left (-speed).
@@ -322,9 +329,26 @@ class GameSession {
             }
         }
 
-        // 3. Cooldowns
+        // 3. Cooldowns & Recoil
         if (this.gameState.cooldowns.wall > 0) this.gameState.cooldowns.wall -= deltaTime * 1000;
         if (this.gameState.cooldowns.bullet > 0) this.gameState.cooldowns.bullet -= deltaTime * 1000;
+        if (this.gameState.recoilTimer > 0) {
+            this.gameState.recoilTimer--;
+            // Update facing direction for attacker
+            const attacker = this.gameState.round === 1 ? this.gameState.p2 : this.gameState.p1;
+            // Normal facing: R1 P2(Attacker) Left(false), R2 P1(Attacker) Left(false)
+            // Wait, in R2 P1 is Attacker at 700, facing Left(false).
+            // Recoil means look BACKWARDS.
+            // If facing Left, backward is Right.
+            // If facing Right, backward is Left.
+            // Attacker always faces Left (false) normally.
+            // So during recoil, face Right (true).
+            attacker.facingRight = true;
+        } else {
+            // Reset facing
+            const attacker = this.gameState.round === 1 ? this.gameState.p2 : this.gameState.p1;
+            attacker.facingRight = false; // Always face left when not recoiling
+        }
 
         // 4. Physics (Gravity)
         [this.gameState.p1, this.gameState.p2].forEach(p => {

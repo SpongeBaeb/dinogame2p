@@ -581,12 +581,12 @@
 
             // Stamina Bar
             els.staminaBar.style.width = state.stamina + '%';
-            els.staminaText.innerText = Math.floor(state.stamina) + '%';
+            els.staminaText.innerText = Math.floor(state.stamina);
 
             // Position Stamina Box (Follow Attacker)
             const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x - 8) + 'px';
-            els.staminaBox.style.bottom = (attacker.y + 70) + 'px';
+            els.staminaBox.style.left = (attacker.x) + 'px';
+            els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
 
             // Indicators
             els.chargeInd.style.display = state.isCharging ? 'block' : 'none';
