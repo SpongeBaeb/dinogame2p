@@ -357,12 +357,14 @@
 
         <div id="ui-layer">
             <div id="p1-status">
-                <div style="color:#007bff; font-weight:bold; margin-bottom:5px;">PLAYER 1</div>
+                <!-- id="p1-name" 추가 -->
+                <div id="p1-name" style="color:#007bff; font-weight:bold; margin-bottom:5px;">PLAYER 1</div>
                 <div class="large-score" id="p1-score">0</div>
             </div>
             <div id="timer">60</div>
             <div id="p2-status">
-                <div style="color:#ff4444; font-weight:bold; margin-bottom:5px;">PLAYER 2</div>
+                <!-- id="p2-name" 추가 -->
+                <div id="p2-name" style="color:#ff4444; font-weight:bold; margin-bottom:5px;">PLAYER 2</div>
                 <div class="large-score" id="p2-score">0</div>
             </div>
         </div>
@@ -474,16 +476,7 @@
             currentRoom = data.roomId;
             myRole = data.player1.userId === userId ? 'player1' : 'player2';
 
-            lobbyScreen.style.display = 'none';
-            gameContainer.style.display = 'block';
-            charSelectScreen.style.display = 'flex';
-
-            initCharSelect();
-        });
-
-        socket.on('playerReadyUpdate', (data) => {
-            document.getElementById('opponent-status').textContent =
-                `Opponent: ${data.readyCount}/2 Ready`;
+            // --- 여기부터 추가 ---
         });
 
         socket.on('gameStart', (data) => {
