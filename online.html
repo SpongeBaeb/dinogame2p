@@ -145,6 +145,7 @@
 
         #stamina-box {
             position: absolute;
+            transform: translateX(-50%);
             width: 80px;
             height: 12px;
             background: #333;
@@ -615,7 +616,7 @@
 
             // Position Stamina Box (Follow Attacker)
             const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x - 8) + 'px';
+            els.staminaBox.style.left = (attacker.x + attacker.width / 2) + 'px';
             els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
 
             // Indicators
@@ -781,7 +782,6 @@
                         const card = document.getElementById(`char-card-${selectedCharIndex}`);
                         card.classList.add('charging'); // 기존 shake 애니메이션 재활용
                         setTimeout(() => card.classList.remove('charging'), 200); // 0.2초 뒤 멈춤
-                        return;
                         return;
                     }
                     isCharSelected = true;

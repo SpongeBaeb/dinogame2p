@@ -123,42 +123,27 @@
         🌐 Online Multiplayer
         <div style="font-size:14px; font-weight:normal; margin-top:5px;">Play via Wi-Fi / Internet</div>
     </button>
+    const username = localStorage.getItem('username');
+    const usernameDisplay = document.getElementById('username-display');
+    const logoutBtn = document.getElementById('logout-btn');
+    const loginLink = document.getElementById('login-link');
 
-    <button class="menu-btn btn-single" onclick="location.href='single.html'">
-        🤖 Single Player (vs AI)
-        <div style="font-size:14px; font-weight:normal; margin-top:5px;">Play against computer AI</div>
-    </button>
+    if (authToken && username) {
+    usernameDisplay.textContent = `Welcome, ${username}!`;
+    logoutBtn.style.display = 'inline-block';
 
-    <button class="menu-btn btn-training" onclick="location.href='training.html'">
-        🧠 AI Training Mode
-        <div style="font-size:14px; font-weight:normal; margin-top:5px;">Train AI with reinforcement learning</div>
-    </button>
-
-    <div class="footer">Developed by User & Gemini AI</div>
-
-    <script>
-        const authToken = localStorage.getItem('authToken');
-        const username = localStorage.getItem('username');
-        const usernameDisplay = document.getElementById('username-display');
-        const logoutBtn = document.getElementById('logout-btn');
-        const loginLink = document.getElementById('login-link');
-
-        if (authToken && username) {
-            usernameDisplay.textContent = `Welcome, ${username}!`;
-            logoutBtn.style.display = 'inline-block';
-
-            logoutBtn.addEventListener('click', () => {
-                if (confirm('Are you sure you want to logout?')) {
-                    localStorage.removeItem('authToken');
-                    localStorage.removeItem('username');
-                    localStorage.removeItem('userId');
-                    window.location.href = 'login.html';
-                }
-            });
-        } else {
-            usernameDisplay.textContent = 'Guest Mode';
-            loginLink.style.display = 'inline';
-        }
+    logoutBtn.addEventListener('click', () => {
+    if (confirm('Are you sure you want to logout?')) {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('username');
+    localStorage.removeItem('userId');
+    window.location.href = 'login.html';
+    }
+    });
+    } else {
+    usernameDisplay.textContent = 'Guest Mode';
+    loginLink.style.display = 'inline';
+    }
     </script>
 </body>
 
