@@ -604,6 +604,7 @@
             console.log('showGameOverScreen called', winnerMsg, reasonMsg);
             els.winnerMsg.innerText = winnerMsg;
             els.gameOverReason.innerText = reasonMsg;
+            els.gameOver.style.display = 'flex';
 
             // MMR Change Display
             const mmrDisplay = document.getElementById('mmr-change-display');
@@ -615,13 +616,16 @@
             }
 
             // Fetch Leaderboard
+            const tbody = document.querySelector('#leaderboard-table tbody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">Loading...</td></tr>';
+
             try {
                 console.log('Fetching leaderboard...');
                 const res = await fetch(`${API_URL}/api/leaderboard/mmr?limit=10`);
                 const data = await res.json();
                 console.log('Leaderboard data:', data);
-                const tbody = document.querySelector('#leaderboard-table tbody');
-                tbody.innerHTML = '';
+
+                if (tbody) tbody.innerHTML = '';
 
                 data.leaderboard.forEach((user, index) => {
                     const row = document.createElement('tr');
@@ -637,7 +641,7 @@
                 console.error('Failed to load leaderboard', err);
             }
 
-            els.gameOver.style.display = 'flex';
+
         }
 
         // Button Handlers
@@ -779,7 +783,7 @@
 
             // Position Stamina Box (Follow Attacker)
             const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x + 4) + 'px';
+            els.staminaBox.style.left = (attacker.x - 8) + 'px';
             els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
 
             // 2. Render Players
