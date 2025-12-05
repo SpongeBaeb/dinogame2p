@@ -850,19 +850,6 @@
             els.staminaBar.style.width = state.stamina + '%';
             els.staminaText.innerText = Math.floor(state.stamina) + '%';
 
-            // Position Stamina Box (Follow Attacker)
-            const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x + staminaOffset) + 'px';
-            els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
-
-            // 2. Render Players
-            renderPlayer(els.p1, state.p1, state.cooldowns);
-            renderPlayer(els.p2, state.p2, state.cooldowns);
-
-            // 3. Render Obstacles
-            renderObstacles(state.obstacles);
-
-            // 4. Render Explosions
             renderExplosions(state.explosions);
 
             // 5. Ground Scroll
@@ -891,54 +878,6 @@
 
 
 
-
-
-
-
-        }
-
-        function renderPlayer(el, pState, cooldowns) {
-            if (!pState) return; // Safety check
-
-            el.style.backgroundImage = `url('assets/${pState.char}.png')`;
-
-            // Determine Frame
-            let frameIndex = 0;
-            const now = Date.now();
-            const runFrame = Math.floor(now / 100) % 6;
-
-            if (pState.isJumping) {
-                frameIndex = 12; // Jump
-            } else if (pState.isSneaking) {
-                frameIndex = 18 + runFrame; // Sneak
-            } else {
-                frameIndex = 4 + runFrame; // Run
-            }
-
-            el.style.backgroundPosition = `-${frameIndex * 64}px 0`;
-
-            // Position
-            const spriteOffset = 16; // (64-32)/2
-            el.style.left = (pState.x - spriteOffset) + 'px';
-            el.style.bottom = (pState.y - spriteOffset) + 'px';
-
-            // Transform (Flip/Rotate)
-            const scaleX = pState.facingRight ? 1 : -1;
-            const rotate = (pState.role === 'runner' && pState.isJumping) ? -pState.vy * 2 : 0;
-
-            el.style.transform = `scaleX(${scaleX}) rotate(${rotate}deg)`;
-
-            // Cooldown effect
-            if (pState.role === 'attacker' && (cooldowns?.wall > 0 || cooldowns?.bullet > 0)) {
-                el.classList.add('cooldown');
-            } else {
-                el.classList.remove('cooldown');
-            }
-        }
-
-        function renderObstacles(obstacles) {
-            // Hide all existing
-            obstaclePool.forEach(el => el.style.display = 'none');
 
             obstacles.forEach((obs, index) => {
                 let el = obstaclePool[index];
@@ -1086,7 +1025,7 @@
         });
 
         // Debug Slider
-        let staminaOffset = -8;
+        let staminaOffset = 18;
         const slider = document.getElementById('stamina-offset-slider');
         const sliderVal = document.getElementById('stamina-offset-val');
         if (slider) {
