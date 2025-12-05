@@ -314,6 +314,22 @@
             justify-content: center;
             color: white;
         }
+
+        #mmr-change-display {
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        #leaderboard-table th {
+            border-bottom: 1px solid #666;
+        }
+
+        #leaderboard-table tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        #leaderboard-table tr:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 
@@ -388,10 +404,38 @@
         <div class="status-indicator" id="cooldown-indicator" style="display: none;">⏳ COOLDOWN</div>
 
         <div id="game-over">
-            <h1 id="winner-msg">GAME OVER</h1>
-            <p id="game-over-reason"></p>
-            <button onclick="location.reload()" class="btn">🔄 Play Again</button>
+            <h1 id="winner-msg" style="font-size: 48px; color: #ffcc00; margin-bottom: 20px;">GAME OVER</h1>
+            <p id="game-over-reason" style="font-size: 24px; color: #aaa; margin-bottom: 20px;"></p>
+
+            <div id="mmr-change-display" style="margin: 20px 0; font-size: 24px; font-weight: bold;"></div>
+
+            <div id="leaderboard-container"
+                style="background: rgba(0,0,0,0.5); padding: 20px; border-radius: 10px; margin-bottom: 20px; width: 80%; max-width: 600px;">
+                <h3 style="margin-top: 0; color: #ffd700; border-bottom: 1px solid #666; padding-bottom: 10px;">🏆 TOP
+                    10 PLAYERS</h3>
+                <table id="leaderboard-table" style="width: 100%; text-align: left; border-collapse: collapse;">
+                    <thead>
+                        <tr style="color: #aaa;">
+                            <th style="padding: 10px;">Rank</th>
+                            <th style="padding: 10px;">Player</th>
+                            <th style="padding: 10px;">MMR</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows will be added here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="display: flex; gap: 20px;">
+                <button id="go-lobby-btn" class="btn" style="background: #444;">🏠 Main Menu</button>
+                <button id="play-again-btn" class="btn">🔄 Quick Match</button>
+            </div>
         </div>
+
+
+
+
     </div>
 
     <script>
@@ -451,6 +495,7 @@
         let isCharSelected = false;
         let selAnimFrame = 0;
         let selAnimTimer = 0;
+        let lastMMRChange = null;
 
         // --- Socket Events ---
         socket.on('connect', () => {
@@ -540,24 +585,96 @@
             // But we might want to show a "Round 2" overlay
         });
         socket.on('mmrUpdate', (data) => {
-            // 내 새로운 MMR 확인
+
             const newMMR = data[userId];
             if (newMMR) {
+                lastMMRChange = newMMR;
                 const tier = getTier(newMMR);
+
 
                 // 로비 랭크 업데이트
                 const rankEl = document.getElementById('my-rank');
                 if (rankEl) {
                     rankEl.innerHTML = `<span style="color:${tier.color}">[${tier.name}]</span> ${newMMR} MMR`;
                 }
-
-                // 게임 오버 메시지에 추가
-                const gameOverMsg = document.getElementById('winner-msg');
-                if (gameOverMsg) {
-                    gameOverMsg.innerHTML += `<br><span style="font-size:20px; color:${tier.color}">New MMR: ${newMMR}</span>`;
-                }
             }
         });
+
+        async function showGameOverScreen(winnerMsg, reasonMsg) {
+            console.log('showGameOverScreen called', winnerMsg, reasonMsg);
+            els.winnerMsg.innerText = winnerMsg;
+            els.gameOverReason.innerText = reasonMsg;
+
+            // MMR Change Display
+            const mmrDisplay = document.getElementById('mmr-change-display');
+            if (lastMMRChange) {
+                const tier = getTier(lastMMRChange);
+                mmrDisplay.innerHTML = `New MMR: <span style="color:${tier.color}">${lastMMRChange}</span>`;
+            } else {
+                mmrDisplay.innerHTML = '';
+            }
+
+            // Fetch Leaderboard
+            try {
+                console.log('Fetching leaderboard...');
+                const res = await fetch(`${API_URL}/api/leaderboard/mmr?limit=10`);
+                const data = await res.json();
+                console.log('Leaderboard data:', data);
+                const tbody = document.querySelector('#leaderboard-table tbody');
+                tbody.innerHTML = '';
+
+                data.leaderboard.forEach((user, index) => {
+                    const row = document.createElement('tr');
+                    const tier = getTier(user.mmr);
+                    row.innerHTML = `
+                        <td style="padding: 8px;">#${index + 1}</td>
+                        <td style="padding: 8px; color: ${user.username === username ? '#00c6ff' : 'white'}">${user.username}</td>
+                        <td style="padding: 8px; color: ${tier.color}">${user.mmr}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (err) {
+                console.error('Failed to load leaderboard', err);
+            }
+
+            els.gameOver.style.display = 'flex';
+        }
+
+        // Button Handlers
+        document.getElementById('go-lobby-btn').addEventListener('click', () => {
+            location.reload();
+        });
+
+        document.getElementById('play-again-btn').addEventListener('click', () => {
+            els.gameOver.style.display = 'none';
+            // Reset Game State UI
+            gameContainer.style.display = 'none';
+            lobbyScreen.style.display = 'block';
+            // Trigger Quick Match
+            socket.emit('quickMatch');
+            // Show waiting UI
+            quickMatchBtn.style.display = 'none';
+            cancelMatchBtn.style.display = 'inline-block';
+            matchStatus.textContent = '⏳ Searching for opponent...';
+        });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         // [추가] 티어 계산 함수
         function getTier(mmr) {
@@ -662,7 +779,7 @@
 
             // Position Stamina Box (Follow Attacker)
             const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x - 4) + 'px';
+            els.staminaBox.style.left = (attacker.x + 4) + 'px';
             els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
 
             // 2. Render Players
@@ -684,16 +801,27 @@
             els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
 
             // 6. Game Over
-            if (!state.isPlaying && state.timer <= 0 && state.round === 2) {
+            if (state.isGameOver) {
+                console.log('Game Over state detected');
+                if (els.gameOver.style.display === 'flex') return;
+
                 let winner = "";
                 if (state.scores.p1 > state.scores.p2) winner = "PLAYER 1 WINS!";
                 else if (state.scores.p2 > state.scores.p1) winner = "PLAYER 2 WINS!";
                 else winner = "DRAW!";
 
-                els.winnerMsg.innerText = winner;
-                els.gameOverReason.innerText = `Score: ${state.scores.p1} - ${state.scores.p2}`;
-                els.gameOver.style.display = 'flex';
+                showGameOverScreen(winner, `Score: ${state.scores.p1} - ${state.scores.p2}`);
             }
+
+
+
+
+
+
+
+
+
+
         }
 
         function renderPlayer(el, pState, cooldowns) {

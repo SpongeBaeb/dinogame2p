@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Score = require('../models/Score');
+const User = require('../models/User');
 const authMiddleware = require('../middleware/authMiddleware');
 
 // Get leaderboard
@@ -14,6 +15,18 @@ router.get('/', async (req, res) => {
     } catch (error) {
         console.error('Leaderboard error:', error);
         res.status(500).json({ error: 'Server error fetching leaderboard' });
+    }
+});
+
+// Get MMR leaderboard
+router.get('/mmr', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 10;
+        const leaderboard = await User.getTopMMR(limit);
+        res.json({ leaderboard });
+    } catch (error) {
+        console.error('MMR Leaderboard error:', error);
+        res.status(500).json({ error: 'Server error fetching MMR leaderboard' });
     }
 });
 

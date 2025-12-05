@@ -57,6 +57,7 @@ class GameSession {
         // Initialize Game State
         this.gameState = {
             isPlaying: false,
+            isGameOver: false,
             round: 1,
             timer: 60,
             speed: CONFIG.minSpeed,
@@ -437,6 +438,7 @@ class GameSession {
         } else {
             this.scores.p2 = this.gameState.p2.score || (this.gameState.timer <= 0 ? 10000 : 0);
             this.gameState.isPlaying = false;
+            this.gameState.isGameOver = true;
             console.log("Game Over");
             if (this.onGameOver) {
                 this.onGameOver(this.roomId, reason, this.scores);

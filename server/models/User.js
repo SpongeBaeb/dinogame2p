@@ -58,6 +58,15 @@ const User = {
             [newMMR, userId]
         );
         return result.rows[0];
+    },
+
+    // Get Top MMR Users
+    async getTopMMR(limit = 10) {
+        const result = await db.query(
+            'SELECT username, mmr FROM users ORDER BY mmr DESC LIMIT $1',
+            [limit]
+        );
+        return result.rows;
     }
 };
 
