@@ -352,7 +352,7 @@
 <body>
     <div id="debug-slider-container-hidden" style="display:none;"
         style="position: fixed; top: 10px; right: 10px; z-index: 3000; background: rgba(0,0,0,0.5); padding: 10px; color: white;">
-        <label>Stamina X Offset: <span id="stamina-offset-val">-8</span></label>
+        <label>Stamina X Offset: <span id="stamina-offset-val-hidden">-8</span></label>
         <input type="range" id="stamina-offset-slider-hidden" min="-50" max="50" value="-8" step="1">
     </div>
     <div id="debug-slider-container"
@@ -852,7 +852,7 @@
 
             // Position Stamina Box (Follow Attacker)
             const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x) + 'px';
+            els.staminaBox.style.left = (attacker.x + staminaOffset) + 'px';
             els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
 
             // 2. Render Players
