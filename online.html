@@ -350,10 +350,15 @@
 </head>
 
 <body>
-    <div id="stamina-debug-ui"
+    <div id="debug-slider-container"
         style="position: fixed; top: 10px; right: 10px; z-index: 3000; background: rgba(0,0,0,0.5); padding: 10px; color: white;">
-        <label>Stamina Bottom: <span id="stamina-val">40</span>px</label>
-        <input type="range" id="stamina-slider" min="-50" max="100" value="40" step="1" style="width: 200px;">
+        <label>Stamina X Offset: <span id="stamina-offset-val">-8</span></label>
+        <input type="range" id="stamina-offset-slider" min="-50" max="50" value="-8" step="1">
+    </div>
+    <div id="debug-slider-container"
+        style="position: fixed; top: 10px; right: 10px; z-index: 3000; background: rgba(0,0,0,0.5); padding: 10px; color: white;">
+        <label>Stamina X Offset: <span id="stamina-offset-val">-8</span></label>
+        <input type="range" id="stamina-offset-slider" min="-50" max="50" value="-8" step="1">
     </div>
     <div id="post-game-screen">
         <h1 id="winner-msg"
@@ -389,9 +394,9 @@
             <button id="play-again-btn" class="btn" style="font-size: 24px; padding: 15px 40px;">🔄 Quick Match</button>
         </div>
     </div>
-    <!-- <div id="debug-overlay"
+    <div id="debug-overlay"
         style="position: fixed; top: 0; left: 0; color: lime; z-index: 1000; background: rgba(0,0,0,0.5); padding: 5px; font-family: monospace; font-size: 14px;">
-        Debug Info</div> -->
+        Debug Info</div>
     <!-- Lobby Screen -->
     <div id="lobby-screen">
         <h1 style="color: #ffcc00; text-shadow: 2px 2px 0 #333; font-size: 48px; margin-bottom: 30px;">
@@ -461,7 +466,7 @@
         <div class="status-indicator" id="charge-indicator" style="display: none;">⚠️ CHARGING!</div>
         <div class="status-indicator" id="cooldown-indicator" style="display: none;">⏳ COOLDOWN</div>
 
-        <!-- <div id="game-over">
+        <div id="game-over">
             <h1 id="winner-msg" style="font-size: 48px; color: #ffcc00; margin-bottom: 20px;">GAME OVER</h1>
             <p id="game-over-reason" style="font-size: 24px; color: #aaa; margin-bottom: 20px;"></p>
 
@@ -481,15 +486,15 @@
                     </thead>
                     <tbody>
                         <!-- Rows will be added here -->
-        </tbody>
-        </table>
-    </div>
+                    </tbody>
+                </table>
+            </div>
 
-    <div style="display: flex; gap: 20px;">
-        <button id="go-lobby-btn" class="btn" style="background: #444;">🏠 Main Menu</button>
-        <button id="play-again-btn" class="btn">🔄 Quick Match</button>
-    </div>
-    </div> -->
+            <div style="display: flex; gap: 20px;">
+                <button id="go-lobby-btn" class="btn" style="background: #444;">🏠 Main Menu</button>
+                <button id="play-again-btn" class="btn">🔄 Quick Match</button>
+            </div>
+        </div>
 
 
 
@@ -711,7 +716,6 @@
 
         document.getElementById('play-again-btn').addEventListener('click', () => {
             els.gameOver.style.display = 'none';
-            currentRoom = null;
             // Reset Game State UI
             gameContainer.style.display = 'none';
             lobbyScreen.style.display = 'block';
@@ -848,10 +852,8 @@
 
             // Position Stamina Box (Follow Attacker)
             const attacker = state.round === 1 ? state.p2 : state.p1;
-            const sliderVal = document.getElementById('stamina-slider')?.value || 40;
-            document.getElementById('stamina-val').innerText = sliderVal;
-            els.staminaBox.style.bottom = (attacker.y + parseInt(sliderVal)) + 'px';
-
+            els.staminaBox.style.left = (attacker.x + staminaOffset) + 'px';
+            els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
 
             // 2. Render Players
             renderPlayer(els.p1, state.p1, state.cooldowns);
@@ -1081,6 +1083,35 @@
 
         cancelMatchBtn.addEventListener('click', () => {
             socket.emit('cancelWaiting');
+        });
+
+        // Debug Slider
+        let staminaOffset = -8;
+        const slider = document.getElementById('stamina-offset-slider');
+        const sliderVal = document.getElementById('stamina-offset-val');
+        if (slider) {
+            slider.addEventListener('input', (e) => {
+                staminaOffset = parseInt(e.target.value);
+                sliderVal.innerText = staminaOffset;
+            });
+        }
+
+        // Post Game Button Events
+        document.getElementById('go-lobby-btn').addEventListener('click', () => {
+            els.gameOver.style.display = 'none';
+            lobbyScreen.style.display = 'flex';
+            currentRoom = null;
+            isCharSelected = false;
+            window.takenChars = [];
+        });
+
+        document.getElementById('play-again-btn').addEventListener('click', () => {
+            els.gameOver.style.display = 'none';
+            lobbyScreen.style.display = 'flex';
+            currentRoom = null;
+            isCharSelected = false;
+            window.takenChars = [];
+            quickMatchBtn.click();
         });
     </script>
 </body>
