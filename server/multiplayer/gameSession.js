@@ -43,12 +43,13 @@ const CONFIG = {
 };
 
 class GameSession {
-    constructor(roomId, player1, player2, p1Char = 'mort', p2Char = 'doux') {
+    constructor(roomId, player1, player2, p1Char = 'mort', p2Char = 'doux', onGameOver = null) {
         this.roomId = roomId;
         this.player1 = player1;
         this.player2 = player2;
         this.p1Char = p1Char;
         this.p2Char = p2Char;
+        this.onGameOver = onGameOver;
 
         this.round = 1;
         this.scores = { p1: 0, p2: 0 };
@@ -437,6 +438,15 @@ class GameSession {
             this.scores.p2 = this.gameState.p2.score || (this.gameState.timer <= 0 ? 10000 : 0);
             this.gameState.isPlaying = false;
             console.log("Game Over");
+            if (this.onGameOver) {
+                this.onGameOver(this.roomId, reason, this.scores);
+            }
+        }
+    }
+
+    handleCollision(userId) {
+        if (this.gameState.isPlaying) {
+            this.endRound("HIT OBSTACLE (Client Reported)");
         }
     }
 }

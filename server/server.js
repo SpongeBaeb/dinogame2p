@@ -160,7 +160,51 @@ io.on('connection', (socket) => {
         if (room.ready.length === 2) {
             const [p1, p2] = room.players;
             // Pass character selections to GameSession
-            const gameSession = new GameSession(roomId, p1, p2, p1.charId, p2.charId);
+            const gameSession = new GameSession(roomId, p1, p2, p1.charId, p2.charId, async (roomId, reason, scores) => {
+                // Game Over Callback (MMR Update)
+                io.to(roomId).emit('roundEnd', { reason, scores });
+
+                const p1Score = scores.p1;
+                const p2Score = scores.p2;
+                let winnerId = null;
+                let loserId = null;
+
+                if (p1Score > p2Score) {
+                    winnerId = p1.userId;
+                    loserId = p2.userId;
+                } else if (p2Score > p1Score) {
+                    winnerId = p2.userId;
+                    loserId = p1.userId;
+                }
+
+                if (winnerId && loserId) {
+                    try {
+                        const winner = await User.findById(winnerId);
+                        const loser = await User.findById(loserId);
+
+                        if (winner && loser) {
+                            const { winnerChange, loserChange } = calculateMMRChange(winner.mmr || 1000, loser.mmr || 1000);
+
+                            const newWinnerMMR = (winner.mmr || 1000) + winnerChange;
+                            const newLoserMMR = Math.max(0, (loser.mmr || 1000) + loserChange);
+
+                            await User.updateMMR(winnerId, newWinnerMMR);
+                            await User.updateMMR(loserId, newLoserMMR);
+
+                            io.to(roomId).emit('mmrUpdate', {
+                                [winnerId]: newWinnerMMR,
+                                [loserId]: newLoserMMR
+                            });
+                            console.log(`🏆 MMR Updated: ${winner.username} (+${winnerChange}) vs ${loser.username} (${loserChange})`);
+                        }
+                    } catch (err) {
+                        console.error('MMR Update Error:', err);
+                    }
+                }
+
+                gameSessions.delete(roomId);
+                roomManager.setRoomStatus(roomId, 'finished');
+            });
             gameSessions.set(roomId, gameSession);
             gameSession.start();
 
@@ -201,61 +245,11 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Game over (collision)
-    socket.on('gameOver', async ({ roomId, reason }) => { // async 필수!
+    // Game over (collision reported by client)
+    socket.on('gameOver', ({ roomId, reason }) => {
         const gameSession = gameSessions.get(roomId);
         if (gameSession) {
-
-            // 라운드 종료 알림
-            io.to(roomId).emit('roundEnd', {
-                reason: reason,
-                scores: gameSession.scores
-            });
-
-            // [추가] 게임 완전 종료 체크 (2라운드 종료)
-            if (gameSession.round === 2) {
-                const p1Score = gameSession.scores.p1;
-                const p2Score = gameSession.scores.p2;
-                let winnerId = null;
-                let loserId = null;
-
-                if (p1Score > p2Score) {
-                    winnerId = gameSession.p1.userId;
-                    loserId = gameSession.p2.userId;
-                } else if (p2Score > p1Score) {
-                    winnerId = gameSession.p2.userId;
-                    loserId = gameSession.p1.userId;
-                }
-
-                // 무승부가 아닐 때만 MMR 업데이트
-                if (winnerId && loserId) {
-                    try {
-                        // 간단한 MMR 계산 (승자 +20, 패자 -20)
-                        // 실제로는 현재 MMR을 가져와서 계산해야 더 정확함
-                        const winner = await User.findById(winnerId);
-                        const loser = await User.findById(loserId);
-
-                        if (winner && loser) {
-                            const newWinnerMMR = (winner.mmr || 1000) + 20;
-                            const newLoserMMR = Math.max(0, (loser.mmr || 1000) - 20); // 0점 이하 방지
-
-                            await User.updateMMR(winnerId, newWinnerMMR);
-                            await User.updateMMR(loserId, newLoserMMR);
-
-                            // 클라이언트에 변경된 MMR 알림
-                            io.to(roomId).emit('mmrUpdate', {
-                                [winnerId]: newWinnerMMR,
-                                [loserId]: newLoserMMR
-                            });
-                            console.log(`🏆 MMR Updated: ${winner.username} (+20) vs ${loser.username} (-20)`);
-                        }
-                    } catch (err) {
-                        console.error('MMR Update Error:', err);
-                    }
-                }
-            }
-
-            gameSession.endRound();
+            gameSession.handleCollision(socket.userId);
         }
     });
 
@@ -315,6 +309,17 @@ setInterval(() => {
         }
     });
 }, GAME_LOOP_RATE);
+
+function calculateMMRChange(winnerMMR, loserMMR) {
+    const K = 32;
+    const expectedScoreWinner = 1 / (1 + Math.pow(10, (loserMMR - winnerMMR) / 400));
+    const expectedScoreLoser = 1 / (1 + Math.pow(10, (winnerMMR - loserMMR) / 400));
+
+    const winnerChange = Math.round(K * (1 - expectedScoreWinner));
+    const loserChange = Math.round(K * (0 - expectedScoreLoser));
+
+    return { winnerChange, loserChange };
+}
 
 // Start server
 const startServer = async () => {
