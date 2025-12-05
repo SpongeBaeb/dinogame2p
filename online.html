@@ -330,10 +330,60 @@
         #leaderboard-table tr:hover {
             background: rgba(255, 255, 255, 0.1);
         }
+
+        #post-game-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            overflow-y: auto;
+        }
     </style>
 </head>
 
 <body>
+    <div id="post-game-screen">
+        <h1 id="winner-msg"
+            style="font-size: 64px; color: #ffcc00; margin-bottom: 20px; text-shadow: 0 0 20px rgba(255, 204, 0, 0.5);">
+            GAME OVER</h1>
+        <p id="game-over-reason" style="font-size: 32px; color: #aaa; margin-bottom: 30px;"></p>
+
+        <div id="mmr-change-display" style="margin: 20px 0; font-size: 36px; font-weight: bold;"></div>
+
+        <div id="leaderboard-container"
+            style="background: rgba(255,255,255,0.05); padding: 40px; border-radius: 20px; margin-bottom: 40px; width: 90%; max-width: 800px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <h3
+                style="margin-top: 0; color: #ffd700; border-bottom: 1px solid #666; padding-bottom: 20px; font-size: 28px;">
+                🏆 TOP 10 PLAYERS</h3>
+            <table id="leaderboard-table"
+                style="width: 100%; text-align: left; border-collapse: collapse; font-size: 20px;">
+                <thead>
+                    <tr style="color: #aaa;">
+                        <th style="padding: 15px;">Rank</th>
+                        <th style="padding: 15px;">Player</th>
+                        <th style="padding: 15px;">MMR</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows will be added here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div style="display: flex; gap: 30px;">
+            <button id="go-lobby-btn" class="btn" style="background: #444; font-size: 24px; padding: 15px 40px;">🏠 Main
+                Menu</button>
+            <button id="play-again-btn" class="btn" style="font-size: 24px; padding: 15px 40px;">🔄 Quick Match</button>
+        </div>
+    </div>
     <div id="debug-overlay"
         style="position: fixed; top: 0; left: 0; color: lime; z-index: 1000; background: rgba(0,0,0,0.5); padding: 5px; font-family: monospace; font-size: 14px;">
         Debug Info</div>
@@ -478,7 +528,7 @@
             staminaText: document.getElementById('stamina-text'),
             chargeInd: document.getElementById('charge-indicator'),
             coolInd: document.getElementById('cooldown-indicator'),
-            gameOver: document.getElementById('game-over'),
+            gameOver: document.getElementById('post-game-screen'),
             winnerMsg: document.getElementById('winner-msg'),
             gameOverReason: document.getElementById('game-over-reason')
         };
@@ -574,6 +624,7 @@
 
         socket.on('gameStart', (data) => {
             charSelectScreen.style.display = 'none';
+            gameContainer.style.display = 'block';
             // Preload assets if needed
             startGameLoop();
         });
@@ -608,6 +659,7 @@
             els.winnerMsg.innerText = winnerMsg;
             els.gameOverReason.innerText = reasonMsg;
             els.gameOver.style.display = 'flex';
+            gameContainer.style.display = 'none';
 
             // MMR Change Display
             const mmrDisplay = document.getElementById('mmr-change-display');
@@ -792,6 +844,8 @@
             const attacker = state.round === 1 ? state.p2 : state.p1;
             els.staminaBox.style.left = (attacker.x - 8) + 'px';
             els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
+            console.log("플레이어 위치:", attacker.x);
+            console.log("계산된 위치:", (attacker.x - 8));
 
             // 2. Render Players
             renderPlayer(els.p1, state.p1, state.cooldowns);
