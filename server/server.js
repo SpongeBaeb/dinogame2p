@@ -285,31 +285,32 @@ setInterval(() => {
     gameSessions.forEach((session, roomId) => {
         // console.log(`Checking session ${roomId}, isPlaying: ${session.gameState.isPlaying}`);
 
-        if (session.gameState.isPlaying) {
-            const state = session.update();
 
-            // console.log(`Emitting state for room ${roomId}, Timer: ${state.timer}`);
+        const state = session.update();
 
-            // Broadcast game state to room
-            io.to(roomId).emit('gameState', {
-                timer: Math.ceil(state.timer),
-                round: state.round,
-                isPlaying: state.isPlaying,
-                scores: session.scores,
-                // Full State Sync
-                p1: state.p1,
-                p2: state.p2,
-                obstacles: state.obstacles,
-                explosions: state.explosions,
-                stamina: state.stamina,
-                cooldowns: state.cooldowns,
-                speed: state.speed,
-                isCharging: state.isCharging
-            });
+        // console.log(`Emitting state for room ${roomId}, Timer: ${state.timer}`);
 
-            // Clear one-shot events after broadcast
-            state.explosions = [];
-        }
+        // Broadcast game state to room
+        io.to(roomId).emit('gameState', {
+            timer: Math.ceil(state.timer),
+            round: state.round,
+            isPlaying: state.isPlaying,
+            isGameOver: state.isGameOver,
+            scores: session.scores,
+            // Full State Sync
+            p1: state.p1,
+            p2: state.p2,
+            obstacles: state.obstacles,
+            explosions: state.explosions,
+            stamina: state.stamina,
+            cooldowns: state.cooldowns,
+            speed: state.speed,
+            isCharging: state.isCharging
+        });
+
+        // Clear one-shot events after broadcast
+        state.explosions = [];
+
     });
 }, GAME_LOOP_RATE);
 
