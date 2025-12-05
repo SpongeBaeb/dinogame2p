@@ -202,8 +202,11 @@ io.on('connection', (socket) => {
                     }
                 }
 
-                gameSessions.delete(roomId);
-                roomManager.setRoomStatus(roomId, 'finished');
+                // Delay session cleanup to allow clients to receive the game over state
+                setTimeout(() => {
+                    gameSessions.delete(roomId);
+                    roomManager.setRoomStatus(roomId, 'finished');
+                }, 5000);
             });
             gameSessions.set(roomId, gameSession);
             gameSession.start();
