@@ -334,6 +334,9 @@
 </head>
 
 <body>
+    <div id="debug-overlay"
+        style="position: fixed; top: 0; left: 0; color: lime; z-index: 1000; background: rgba(0,0,0,0.5); padding: 5px; font-family: monospace; font-size: 14px;">
+        Debug Info</div>
     <!-- Lobby Screen -->
     <div id="lobby-screen">
         <h1 style="color: #ffcc00; text-shadow: 2px 2px 0 #333; font-size: 48px; margin-bottom: 30px;">
@@ -766,6 +769,10 @@
         }
 
         function renderGame(state) {
+            const debugEl = document.getElementById('debug-overlay');
+            if (debugEl) {
+                debugEl.innerText = `R:${state.round} Play:${state.isPlaying} Over:${state.isGameOver} T:${state.timer.toFixed(1)}`;
+            }
             // Update Round
             currentRound = state.round;
 
