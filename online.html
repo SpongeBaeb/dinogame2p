@@ -499,12 +499,22 @@
         // [추가] 캐릭터 선택 업데이트 (다른 플레이어가 선택했을 때)
         socket.on('charSelectedUpdate', (data) => {
             // 내가 아닌 다른 사람이 선택한 캐릭터라면 비활성화 목록에 추가
-            if (data.userId !== userId) {
-                // 이미 선택된 캐릭터 목록 관리 (전역 변수 필요)
-                if (!window.takenChars) window.takenChars = [];
-                window.takenChars.push(data.charId);
-                updateCharSelectUI(); // UI 갱신
+
+            // 이미 선택된 캐릭터 목록 관리 (전역 변수 필요)
+            if (!window.takenChars) window.takenChars = [];
+            window.takenChars.push(data.charId);
+
+            // 내 선택이 성공한 경우
+            if (data.userId === userId) {
+                isCharSelected = true;
+                // 이제 준비 완료 신호 보냄
+                socket.emit('playerReady', {
+                    roomId: currentRoom,
+                    charId: data.charId
+                });
             }
+            updateCharSelectUI(); // UI 갱신
+            // }
         });
 
         // [추가] 캐릭터 선택 실패 (중복 선택 시)
@@ -652,12 +662,8 @@
 
             // Position Stamina Box (Follow Attacker)
             const attacker = state.round === 1 ? state.p2 : state.p1;
-            els.staminaBox.style.left = (attacker.x + attacker.width / 2) + 'px';
+            els.staminaBox.style.left = (attacker.x - 12) + 'px';
             els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
-
-            // Indicators
-            els.chargeInd.style.display = state.isCharging ? 'block' : 'none';
-            els.coolInd.style.display = (state.cooldowns.wall > 0 || state.cooldowns.bullet > 0) ? 'block' : 'none';
 
             // 2. Render Players
             renderPlayer(els.p1, state.p1, state.cooldowns);
@@ -820,9 +826,9 @@
                         setTimeout(() => card.classList.remove('charging'), 200); // 0.2초 뒤 멈춤
                         return;
                     }
-                    isCharSelected = true;
-                    updateCharSelectUI();
-                    socket.emit('playerReady', {
+
+
+                    socket.emit('selectChar', {
                         roomId: currentRoom,
                         charId: CONFIG.characters[selectedCharIndex]
                     });

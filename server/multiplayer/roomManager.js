@@ -56,9 +56,6 @@ class RoomManager {
     /**
      * Quick match - find or create a room
      */
-    /**
-     * Quick match - find or create a room
-     */
     quickMatch(player) {
         const myMMR = player.mmr || 1000;
 

@@ -117,6 +117,20 @@ io.on('connection', (socket) => {
         }
     });
 
+    // [추가] Character selection
+    socket.on('selectChar', ({ roomId, charId }) => {
+        const success = roomManager.selectCharacter(roomId, socket.userId, charId);
+        if (success) {
+            // Broadcast selection to room so others can disable this char
+            io.to(roomId).emit('charSelectedUpdate', {
+                userId: socket.userId,
+                charId: charId
+            });
+        } else {
+            socket.emit('charSelectFail', { message: 'Character already taken' });
+        }
+    });
+
     // Player ready
     socket.on('playerReady', ({ roomId, charId }) => {
         const room = roomManager.getRoom(roomId);
