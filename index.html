@@ -317,6 +317,8 @@
                         <td style="color: #ffd700;">${user.mmr}</td>
                     `;
                     leaderboardBody.appendChild(row);
+                    document.getElementById('leaderboard-loading').style.display = 'none';
+                    document.getElementById('leaderboard-table').style.display = 'table';
                 });
             } catch (err) {
                 console.error('Failed to fetch leaderboard:', err);
