@@ -1,15 +1,16 @@
 <!DOCTYPE html>
 <html lang="ko">
 
-<!DOCTYPE html>
-<html lang="ko">
-
 <head>
     <meta charset="UTF-8">
     <title>DinoJam - Main Menu</title>
     <link rel="stylesheet" href="css/game.css">
     <style>
         body {
+            background-color: #111;
+            color: white;
+
+
             background-color: #111;
             color: white;
             font-family: 'Consolas', monospace;
@@ -84,11 +85,6 @@
             color: white;
         }
 
-        .btn-leaderboard {
-            background: linear-gradient(45deg, #FFD700, #FFA500);
-            color: black;
-        }
-
         .footer {
             position: absolute;
             bottom: 20px;
@@ -140,53 +136,57 @@
 
         .modal-content {
             background-color: #222;
-            margin: auto;
-            padding: 30px;
+            padding: 20px;
+            border: 2px solid #ffcc00;
             border-radius: 10px;
             width: 80%;
             max-width: 600px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-            position: relative;
+            max-height: 80%;
+            overflow-y: auto;
             text-align: center;
+            position: relative;
         }
 
         .close-btn {
-            color: #aaa;
             position: absolute;
             top: 10px;
             right: 20px;
+            color: #aaa;
             font-size: 28px;
             font-weight: bold;
             cursor: pointer;
         }
 
-        .close-btn:hover,
-        .close-btn:focus {
+        .close-btn:hover {
             color: white;
-            text-decoration: none;
-            cursor: pointer;
         }
 
-        .modal table {
+        table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            color: white;
         }
 
-        .modal th,
-        .modal td {
+        th,
+        td {
             padding: 10px;
             border-bottom: 1px solid #444;
-            text-align: left;
+            text-align: center;
         }
 
-        .modal th {
+        th {
             background-color: #333;
             color: #ffcc00;
         }
 
-        .modal tr:last-child td {
-            border-bottom: none;
+        tr:nth-child(even) {
+            background-color: #2a2a2a;
+        }
+
+        .btn-leaderboard {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: black;
         }
     </style>
 </head>
@@ -281,8 +281,55 @@
             localStorage.removeItem('userId');
             window.location.reload();
         }
-            }
 
+        // Leaderboard Logic
+        const leaderboardModal = document.getElementById('leaderboard-modal');
+        const leaderboardBody = document.getElementById('leaderboard-body');
+
+        function openLeaderboard() {
+            leaderboardModal.style.display = 'flex';
+            fetchLeaderboard();
+        }
+
+        function closeLeaderboard() {
+            leaderboardModal.style.display = 'none';
+        }
+
+        async function fetchLeaderboard() {
+            leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Loading...</td></tr>';
+            try {
+                const res = await fetch('/api/leaderboard/mmr?limit=10');
+                const data = await res.json();
+
+                leaderboardBody.innerHTML = '';
+                data.leaderboard.forEach((user, index) => {
+                    const row = document.createElement('tr');
+
+                    // Rank styling
+                    let rankDisplay = `#${index + 1}`;
+                    if (index === 0) rankDisplay = '🥇';
+                    if (index === 1) rankDisplay = '🥈';
+                    if (index === 2) rankDisplay = '🥉';
+
+                    row.innerHTML = `
+                        <td style="font-size: 1.2em;">${rankDisplay}</td>
+                        <td style="color: ${user.username === username ? '#00c6ff' : 'white'}; font-weight: bold;">${user.username}</td>
+                        <td style="color: #ffd700;">${user.mmr}</td>
+                    `;
+                    leaderboardBody.appendChild(row);
+                });
+            } catch (err) {
+                console.error('Failed to fetch leaderboard:', err);
+                leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #ff4444;">Failed to load data</td></tr>';
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+            if (event.target == leaderboardModal) {
+                closeLeaderboard();
+            }
+        }
     </script>
 </body>
 
