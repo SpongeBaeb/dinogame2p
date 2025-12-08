@@ -290,6 +290,29 @@
             leaderboardModal.style.display = 'flex';
             fetchLeaderboard();
         }
+        // Rank styling
+        let rankDisplay = `#${index + 1}`;
+        if (index === 0) rankDisplay = '🥇';
+        if (index === 1) rankDisplay = '🥈';
+        if (index === 2) rankDisplay = '🥉';
+
+        row.innerHTML = `
+                        <td style="font-size: 1.2em;">${rankDisplay}</td>
+                        <td style="color: ${user.username === username ? '#00c6ff' : 'white'}; font-weight: bold;">${user.username}</td>
+                        <td style="color: #ffd700;">${user.mmr}</td>
+                    `;
+        leaderboardBody.appendChild(row);
+                });
+            } catch (err) {
+            console.error('Failed to fetch leaderboard:', err);
+            leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #ff4444;">Failed to load data</td></tr>';
+        }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+            if (event.target == leaderboardModal) {
+                closeLeaderboard();
             }
         }
     </script>
