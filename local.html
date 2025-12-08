@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Runner vs Attacker (Local 2P) - Round System</title>
+    <title>DinoJam (Local 2P) - Round System</title>
     <!-- 공통 게임 엔진 -->
     <script src="js/config.js"></script>
     <script src="js/game-engine.js"></script>
@@ -32,7 +32,9 @@
             width: 800px;
             height: 300px;
             border: 4px solid #666;
-            background-color: #dcdcdc;
+            background-image: url('assets/background.png');
+            background-size: cover;
+            background-position: center;
             position: relative;
             overflow: hidden;
             box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
@@ -97,13 +99,16 @@
         }
 
         #stamina-box {
-            width: 100%;
-            height: 15px;
+            position: absolute;
+            transform: translateX(-50%);
+            /* 중앙 정렬을 위해 필요 */
+            width: 80px;
+            height: 12px;
             background: #333;
             border: 2px solid #000;
-            position: relative;
             border-radius: 10px;
             overflow: hidden;
+            z-index: 25;
         }
 
         #stamina-bar {
@@ -171,7 +176,7 @@
             background-repeat: repeat-x;
             background-position: 0 0;
             position: absolute;
-            bottom: 5px;
+            bottom: 0px;
             left: 0;
             z-index: 10;
         }
@@ -383,14 +388,15 @@
             </div>
         </div>
 
+        <div id="stamina-box">
+            <div id="stamina-bar"></div>
+            <div id="stamina-text">STAMINA</div>
+        </div>
+
         <div id="ui-layer">
             <div id="p1-status">
                 <div style="color:#007bff; font-weight:bold; margin-bottom:5px;">P1</div>
                 <div class="large-score">0</div>
-                <div id="stamina-box">
-                    <div id="stamina-bar"></div>
-                    <div id="stamina-text">STAMINA</div>
-                </div>
             </div>
             <div id="timer">60</div>
             <div id="p2-status">
@@ -1016,8 +1022,8 @@
             const p2FrameIndex = 4 + state.p2Anim.frame; // P2's own running animation (frames 5-10)
             els.p2.style.backgroundPosition = `-${p2FrameIndex * 64}px 0`;
             const p2SpriteOffset = (64 - 32) / 2; // Same 16px offset
-            els.p2.style.left = ((state.round === 1 ? 700 : 50) - p2SpriteOffset) + 'px';
             els.p2.style.bottom = (state.p2Y - p2SpriteOffset) + 'px';
+            els.p2.style.left = ((state.round === 1 ? 666 : 60) - p2SpriteOffset) + 'px';
 
             // Flip logic
             let p2Scale = (state.round === 2) ? -1 : 1;
@@ -1078,7 +1084,7 @@
                     const offsetX = (renderWidth - o.w) / 2;
                     const offsetY = (renderHeight - o.h) / 2;
 
-                    div.style.transform = `translate3d(${o.x - offsetX}px, ${-o.y - offsetY}px, 0) ${state.round === 1 ? 'scaleX(-1)' : ''}`;
+                    div.style.transform = `translate3d(${o.x - offsetX}px, ${-(o.y - offsetY)}px, 0) ${state.round === 1 ? 'scaleX(-1)' : ''}`;
                     div.style.left = '0';
                     div.style.bottom = '0';
                     div.style.width = renderWidth + 'px';
@@ -1089,7 +1095,7 @@
                     div.style.backgroundSize = 'auto 96px';
                     div.style.backgroundRepeat = 'no-repeat';
                     div.style.backgroundPosition = `-${o.animFrame * 96}px 0`;
-                    div.style.transform = (state.round === 1) ? 'scaleX(-1)' : 'scaleX(1)';
+
 
                 } else {
                     // Normal rendering for walls
@@ -1121,7 +1127,25 @@
             document.getElementById('stamina-bar').style.width = state.stamina + '%';
             document.getElementById('stamina-text').innerText = Math.floor(state.stamina) + '%';
 
+            const staminaBox = document.getElementById('stamina-box');
+            let targetX, targetY;
 
+            // 현재 라운드의 공격자(Attacker) 위치 가져오기
+            if (state.round === 1) {
+                // 1라운드: P2가 공격자
+                targetX = 650;
+                targetY = state.p2Y;
+            } else {
+                // 2라운드: P1이 공격자
+                targetX = 40;
+                targetY = state.p2Y;
+            }
+
+            // 플레이어 머리 위로 위치 설정 (플레이어 크기 64px 고려)
+            // left: 플레이어 중앙(X + 32)
+            // bottom: 플레이어 머리 위(Y + 80 정도)
+            staminaBox.style.left = (targetX + 32) + 'px';
+            staminaBox.style.bottom = (targetY + 40) + 'px';
             // Ground Scroll
             if (state.round === 1) {
                 groundScrollX = (groundScrollX + groundSpeed) % 800;
@@ -1203,6 +1227,7 @@
                 }
                 if (e.key === 's' || e.key === 'S') {
                     state.p1Sneak = true;
+                    if (state.p1Y > 40) state.p1Vy = -6;
                 }
             } else {
                 // P1 is Attacker
@@ -1241,13 +1266,11 @@
                         if (state.jumpCount === 2) {
                             spawnExplosion(p1Rect.x + 16, state.p1Y - 10);
                         }
-                    } else if (state.p1Y > 40 && state.p1Vy > 0) {
-                        // Fast fall
-                        state.p1Vy = -5;
                     }
                 }
                 if (e.key === 'ArrowDown') {
                     state.p1Sneak = true;
+                    if (state.p1Y > 40) state.p1Vy = -6;
                 }
             }
         });

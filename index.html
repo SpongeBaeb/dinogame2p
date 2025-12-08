@@ -3,10 +3,14 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Runner vs Attacker - Main Menu</title>
+    <title>DinoJam - Main Menu</title>
     <link rel="stylesheet" href="css/game.css">
     <style>
         body {
+            background-color: #111;
+            color: white;
+
+
             background-color: #111;
             color: white;
             font-family: 'Consolas', monospace;
@@ -16,6 +20,20 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
+            overflow: hidden;
+        }
+
+        #background-layer {
+            position: fixed;
+            top: -5%;
+            left: -5%;
+            width: 110%;
+            height: 110%;
+            background-image: url('assets/main.png');
+            background-size: cover;
+            background-position: center;
+            z-index: -1;
+            transition: transform 0.1s ease-out;
         }
 
         h1 {
@@ -174,7 +192,8 @@
 </head>
 
 <body>
-    <div class="user-info">
+    <div id="background-layer"></div>
+    <div class="user-info" id="user-info">
         <span id="username-display"></span>
         <button id="logout-btn" style="display: none;">Logout</button>
         <a href="login.html" id="login-link" style="display: none;">Login</a>
@@ -232,34 +251,40 @@
     </div>
 
     <script>
+        // Parallax Effect
+        const bg = document.getElementById('background-layer');
+        document.addEventListener('mousemove', (e) => {
+            const x = (window.innerWidth / 2 - e.clientX) / 50;
+            const y = (window.innerHeight / 2 - e.clientY) / 50;
+            bg.style.transform = `translate(${x}px, ${y}px)`;
+        });
+
         const authToken = localStorage.getItem('authToken');
         const username = localStorage.getItem('username');
-        const usernameDisplay = document.getElementById('username-display');
-        const logoutBtn = document.getElementById('logout-btn');
-        const loginLink = document.getElementById('login-link');
+        const userInfoDiv = document.getElementById('user-info');
 
         if (authToken && username) {
-            usernameDisplay.textContent = `Welcome, ${username}!`;
-            logoutBtn.style.display = 'inline-block';
-
-            logoutBtn.addEventListener('click', () => {
-                if (confirm('Are you sure you want to logout?')) {
-                    localStorage.removeItem('authToken');
-                    localStorage.removeItem('username');
-                    localStorage.removeItem('userId');
-                    window.location.href = 'login.html';
-                }
-            });
+            userInfoDiv.innerHTML = `
+                <span>Welcome, ${username}!</span>
+                <button onclick="logout()">Logout</button>
+            `;
         } else {
-            usernameDisplay.textContent = 'Guest Mode';
-            loginLink.style.display = 'inline';
+            userInfoDiv.innerHTML = `
+                <a href="login.html" style="text-decoration:none; color:#00c6ff; font-weight:bold; margin-right:15px;">Login</a>
+                <a href="register.html" style="text-decoration:none; color:#ffcc00; font-weight:bold;">Register</a>
+            `;
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('username');
+            localStorage.removeItem('userId');
+            window.location.reload();
         }
 
         // Leaderboard Logic
         const leaderboardModal = document.getElementById('leaderboard-modal');
         const leaderboardBody = document.getElementById('leaderboard-body');
-        const leaderboardLoading = document.getElementById('leaderboard-loading');
-        const leaderboardTable = document.getElementById('leaderboard-table');
 
         function openLeaderboard() {
             leaderboardModal.style.display = 'flex';
@@ -270,45 +295,39 @@
             leaderboardModal.style.display = 'none';
         }
 
+        async function fetchLeaderboard() {
+            leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Loading...</td></tr>';
+            try {
+                const res = await fetch('/api/leaderboard/mmr?limit=10');
+                const data = await res.json();
+
+                leaderboardBody.innerHTML = '';
+                data.leaderboard.forEach((user, index) => {
+                    const row = document.createElement('tr');
+
+                    // Rank styling
+                    let rankDisplay = `#${index + 1}`;
+                    if (index === 0) rankDisplay = '🥇';
+                    if (index === 1) rankDisplay = '🥈';
+                    if (index === 2) rankDisplay = '🥉';
+
+                    row.innerHTML = `
+                        <td style="font-size: 1.2em;">${rankDisplay}</td>
+                        <td style="color: ${user.username === username ? '#00c6ff' : 'white'}; font-weight: bold;">${user.username}</td>
+                        <td style="color: #ffd700;">${user.mmr}</td>
+                    `;
+                    leaderboardBody.appendChild(row);
+                });
+            } catch (err) {
+                console.error('Failed to fetch leaderboard:', err);
+                leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #ff4444;">Failed to load data</td></tr>';
+            }
+        }
+
         // Close modal when clicking outside
         window.onclick = function (event) {
             if (event.target == leaderboardModal) {
                 closeLeaderboard();
-            }
-        }
-
-        async function fetchLeaderboard() {
-            leaderboardLoading.style.display = 'block';
-            leaderboardTable.style.display = 'none';
-            leaderboardBody.innerHTML = '';
-
-            try {
-                const response = await fetch('/api/leaderboard/mmr?limit=10');
-                const data = await response.json();
-
-                if (data.leaderboard) {
-                    data.leaderboard.forEach((player, index) => {
-                        const row = document.createElement('tr');
-
-                        // Rank formatting
-                        let rankDisplay = index + 1;
-                        if (index === 0) rankDisplay = '🥇';
-                        else if (index === 1) rankDisplay = '🥈';
-                        else if (index === 2) rankDisplay = '🥉';
-
-                        row.innerHTML = `
-                            <td>${rankDisplay}</td>
-                            <td>${player.username}</td>
-                            <td>${player.mmr}</td>
-                        `;
-                        leaderboardBody.appendChild(row);
-                    });
-                    leaderboardLoading.style.display = 'none';
-                    leaderboardTable.style.display = 'table';
-                }
-            } catch (error) {
-                console.error('Error fetching leaderboard:', error);
-                leaderboardLoading.textContent = 'Failed to load leaderboard.';
             }
         }
     </script>
