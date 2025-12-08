@@ -11,13 +11,19 @@ const initDatabase = async () => {
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
                 mmr INTEGER DEFAULT 1000, -- [추가] 기본 점수 1000점
+                is_banned BOOLEAN DEFAULT FALSE, -- [추가] 밴 여부
+                ban_reason VARCHAR(255), -- [추가] 밴 사유
+                last_fingerprint VARCHAR(255), -- [추가] 기기 식별값
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP
             );
         `);
         try {
             await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mmr INTEGER DEFAULT 1000;`);
-        } catch (e) { console.log('MMR column check skipped'); }
+            await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE;`);
+            await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason VARCHAR(255);`);
+            await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_fingerprint VARCHAR(255);`);
+        } catch (e) { console.log('Column check skipped'); }
 
 
         // Scores table
@@ -29,6 +35,20 @@ const initDatabase = async () => {
                 game_mode VARCHAR(20) DEFAULT 'single',
                 round_survived INTEGER DEFAULT 1,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Match History table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS match_history (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                player1_id UUID REFERENCES users(id),
+                player2_id UUID REFERENCES users(id),
+                winner_id UUID REFERENCES users(id),
+                p1_fingerprint VARCHAR(255), -- [추가]
+                p2_fingerprint VARCHAR(255), -- [추가]
+                duration_seconds INTEGER,
+                ended_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
 

@@ -43,12 +43,14 @@ const CONFIG = {
 };
 
 class GameSession {
-    constructor(roomId, player1, player2, p1Char = 'mort', p2Char = 'doux', onGameOver = null) {
+    constructor(roomId, player1, player2, p1Char = 'mort', p2Char = 'doux', p1Fingerprint = null, p2Fingerprint = null, onGameOver = null) {
         this.roomId = roomId;
         this.player1 = player1;
         this.player2 = player2;
         this.p1Char = p1Char;
         this.p2Char = p2Char;
+        this.p1Fingerprint = p1Fingerprint;
+        this.p2Fingerprint = p2Fingerprint;
         this.onGameOver = onGameOver;
 
         this.round = 1;

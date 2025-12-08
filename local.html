@@ -1121,8 +1121,6 @@
             document.getElementById('stamina-bar').style.width = state.stamina + '%';
             document.getElementById('stamina-text').innerText = Math.floor(state.stamina) + '%';
 
-            els.chargeInd.style.display = state.isCharging ? 'block' : 'none';
-            els.coolInd.style.display = (now - state.lastWallTime < CONFIG.wallCooldown) ? 'block' : 'none';
 
             // Ground Scroll
             if (state.round === 1) {

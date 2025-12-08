@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const { initDatabase } = require('./models/schema');
+const db = require('./config/db'); // [추가] DB 접근을 위해 추가
 const authRoutes = require('./routes/auth');
 const leaderboardRoutes = require('./routes/leaderboard');
 const User = require('./models/User');
@@ -52,16 +53,35 @@ io.on('connection', (socket) => {
 
     // Player authentication
     socket.on('authenticate', async (data) => {
-        const { userId, username } = data;
+        const { userId, username, fingerprint } = data;
         connectedPlayers.set(userId, {
             socketId: socket.id,
             username: username,
+            fingerprint: fingerprint,
             inRoom: null
         });
         socket.userId = userId;
         socket.username = username;
-        console.log(`✅ Player authenticated: ${username} (${userId})`);
+        socket.fingerprint = fingerprint;
+        console.log(`✅ Player authenticated: ${username} (${userId}) [FP: ${fingerprint}]`);
         const user = await User.findById(userId); // DB 조회 필요
+
+        // Update last_fingerprint
+        if (user && fingerprint) {
+            try {
+                await db.query('UPDATE users SET last_fingerprint = $1 WHERE id = $2', [fingerprint, userId]);
+            } catch (err) {
+                console.error('Failed to update fingerprint:', err);
+            }
+        }
+
+        // [추가] 밴 확인
+        if (user && user.is_banned) {
+            socket.emit('error', { message: `You are banned: ${user.ban_reason}` });
+            socket.disconnect();
+            return;
+        }
+
         socket.emit('authenticated', {
             success: true,
             mmr: user ? user.mmr : 1000
@@ -83,7 +103,8 @@ io.on('connection', (socket) => {
             userId: socket.userId,
             username: socket.username,
             socketId: socket.id,
-            mmr: myMMR // [추가] MMR 정보 포함
+            mmr: myMMR, // [추가] MMR 정보 포함
+            fingerprint: socket.fingerprint
         };
 
         const result = roomManager.quickMatch(player);
@@ -160,7 +181,8 @@ io.on('connection', (socket) => {
         if (room.ready.length === 2) {
             const [p1, p2] = room.players;
             // Pass character selections to GameSession
-            const gameSession = new GameSession(roomId, p1, p2, p1.charId, p2.charId, async (roomId, reason, scores) => {
+            const startTime = Date.now(); // [추가] 게임 시작 시간 기록
+            const gameSession = new GameSession(roomId, p1, p2, p1.charId, p2.charId, p1.fingerprint, p2.fingerprint, async (roomId, reason, scores) => {
                 // Game Over Callback (MMR Update)
                 io.to(roomId).emit('roundEnd', { reason, scores });
 
@@ -196,9 +218,17 @@ io.on('connection', (socket) => {
                                 [loserId]: newLoserMMR
                             });
                             console.log(`🏆 MMR Updated: ${winner.username} (+${winnerChange}) vs ${loser.username} (${loserChange})`);
+
+                            // [추가] 매치 기록 저장
+                            const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+                            await db.query(
+                                'INSERT INTO match_history (player1_id, player2_id, winner_id, duration_seconds, p1_fingerprint, p2_fingerprint) VALUES ($1, $2, $3, $4, $5, $6)',
+                                [p1.userId, p2.userId, winnerId, durationSeconds, p1.fingerprint, p2.fingerprint]
+                            );
+                            console.log(`📝 Match recorded: ${durationSeconds}s`);
                         }
                     } catch (err) {
-                        console.error('MMR Update Error:', err);
+                        console.error('MMR Update / Match Record Error:', err);
                     }
                 }
 

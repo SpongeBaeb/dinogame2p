@@ -6,6 +6,7 @@
     <title>Runner vs Attacker - Online Multiplayer</title>
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <!-- Game Engine -->
     <script src="js/config.js"></script>
     <script src="js/game-engine.js"></script>
@@ -514,7 +515,24 @@
         }
 
         // --- Socket.IO ---
-        const socket = io(API_URL);
+        // --- Socket.IO ---
+        let socket;
+        let myFingerprint = null;
+
+        const initFingerprint = async () => {
+            const fp = await FingerprintJS.load();
+            const result = await fp.get();
+            myFingerprint = result.visitorId;
+            console.log('🆔 Device Fingerprint:', myFingerprint);
+        };
+
+        const initSocket = async () => {
+            await initFingerprint();
+            socket = io(API_URL);
+            setupSocketEvents();
+        };
+        
+        initSocket();
 
         // --- DOM Elements ---
         const lobbyScreen = document.getElementById('lobby-screen');
@@ -561,10 +579,15 @@
         let lastMMRChange = null;
 
         // --- Socket Events ---
+        function setupSocketEvents() {
         socket.on('connect', () => {
             connectionStatus.textContent = `✅ Connected as ${username}`;
             connectionStatus.style.color = '#4caf50';
-            socket.emit('authenticate', { userId, username });
+            socket.emit('authenticate', { 
+                userId, 
+                username,
+                fingerprint: myFingerprint 
+            });
         });
 
         socket.on('authenticated', (data) => {
@@ -663,6 +686,7 @@
                 }
             }
         });
+        }
 
         async function showGameOverScreen(winnerMsg, reasonMsg) {
             console.log('showGameOverScreen called', winnerMsg, reasonMsg);
