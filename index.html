@@ -101,6 +101,75 @@
             text-decoration: none;
             margin-left: 10px;
         }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: #222;
+            padding: 20px;
+            border: 2px solid #ffcc00;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            max-height: 80%;
+            overflow-y: auto;
+            text-align: center;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close-btn:hover {
+            color: white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            color: white;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #444;
+            text-align: center;
+        }
+
+        th {
+            background-color: #333;
+            color: #ffcc00;
+        }
+
+        tr:nth-child(even) {
+            background-color: #2a2a2a;
+        }
+
+        .btn-leaderboard {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: black;
+        }
     </style>
 </head>
 
@@ -134,7 +203,33 @@
         <div style="font-size:14px; font-weight:normal; margin-top:5px;">Train AI with reinforcement learning</div>
     </button>
 
+    <button class="menu-btn btn-leaderboard" onclick="openLeaderboard()">
+        🏆 Leaderboard
+        <div style="font-size:14px; font-weight:normal; margin-top:5px;">Top Players Ranking</div>
+    </button>
+
     <div class="footer">Developed by User & Gemini AI</div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboard-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeLeaderboard()">&times;</span>
+            <h2 style="color: #ffcc00;">🏆 Top Players (MMR)</h2>
+            <div id="leaderboard-loading">Loading...</div>
+            <table id="leaderboard-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>MMR</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <!-- Data will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
 
     <script>
         const authToken = localStorage.getItem('authToken');
@@ -158,6 +253,63 @@
         } else {
             usernameDisplay.textContent = 'Guest Mode';
             loginLink.style.display = 'inline';
+        }
+
+        // Leaderboard Logic
+        const leaderboardModal = document.getElementById('leaderboard-modal');
+        const leaderboardBody = document.getElementById('leaderboard-body');
+        const leaderboardLoading = document.getElementById('leaderboard-loading');
+        const leaderboardTable = document.getElementById('leaderboard-table');
+
+        function openLeaderboard() {
+            leaderboardModal.style.display = 'flex';
+            fetchLeaderboard();
+        }
+
+        function closeLeaderboard() {
+            leaderboardModal.style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+            if (event.target == leaderboardModal) {
+                closeLeaderboard();
+            }
+        }
+
+        async function fetchLeaderboard() {
+            leaderboardLoading.style.display = 'block';
+            leaderboardTable.style.display = 'none';
+            leaderboardBody.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/leaderboard/mmr?limit=10');
+                const data = await response.json();
+
+                if (data.leaderboard) {
+                    data.leaderboard.forEach((player, index) => {
+                        const row = document.createElement('tr');
+
+                        // Rank formatting
+                        let rankDisplay = index + 1;
+                        if (index === 0) rankDisplay = '🥇';
+                        else if (index === 1) rankDisplay = '🥈';
+                        else if (index === 2) rankDisplay = '🥉';
+
+                        row.innerHTML = `
+                            <td>${rankDisplay}</td>
+                            <td>${player.username}</td>
+                            <td>${player.mmr}</td>
+                        `;
+                        leaderboardBody.appendChild(row);
+                    });
+                    leaderboardLoading.style.display = 'none';
+                    leaderboardTable.style.display = 'table';
+                }
+            } catch (error) {
+                console.error('Error fetching leaderboard:', error);
+                leaderboardLoading.textContent = 'Failed to load leaderboard.';
+            }
         }
     </script>
 </body>
