@@ -20,8 +20,21 @@ fi
 
 # 2. Pull latest changes
 echo "📥 Pulling latest code from GitHub..."
+
+# Stash local changes (e.g., .env) to avoid conflicts
+STASH_OUTPUT=$(git stash)
+echo "Saved local changes: $STASH_OUTPUT"
+
 git pull
-if [ $? -ne 0 ]; then
+PULL_EXIT_CODE=$?
+
+# Restore local changes if we stashed something
+if [[ "$STASH_OUTPUT" != "No local changes to save" ]]; then
+    echo "📤 Restoring local changes..."
+    git stash pop
+fi
+
+if [ $PULL_EXIT_CODE -ne 0 ]; then
     echo "❌ Git pull failed!"
     exit 1
 fi
