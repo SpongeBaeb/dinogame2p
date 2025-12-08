@@ -290,23 +290,38 @@
             leaderboardModal.style.display = 'flex';
             fetchLeaderboard();
         }
-        // Rank styling
-        let rankDisplay = `#${index + 1}`;
-        if (index === 0) rankDisplay = '🥇';
-        if (index === 1) rankDisplay = '🥈';
-        if (index === 2) rankDisplay = '🥉';
 
-        row.innerHTML = `
+        function closeLeaderboard() {
+            leaderboardModal.style.display = 'none';
+        }
+
+        async function fetchLeaderboard() {
+            leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Loading...</td></tr>';
+            try {
+                const res = await fetch('/api/leaderboard/mmr?limit=10');
+                const data = await res.json();
+
+                leaderboardBody.innerHTML = '';
+                data.leaderboard.forEach((user, index) => {
+                    const row = document.createElement('tr');
+
+                    // Rank styling
+                    let rankDisplay = `#${index + 1}`;
+                    if (index === 0) rankDisplay = '🥇';
+                    if (index === 1) rankDisplay = '🥈';
+                    if (index === 2) rankDisplay = '🥉';
+
+                    row.innerHTML = `
                         <td style="font-size: 1.2em;">${rankDisplay}</td>
                         <td style="color: ${user.username === username ? '#00c6ff' : 'white'}; font-weight: bold;">${user.username}</td>
                         <td style="color: #ffd700;">${user.mmr}</td>
                     `;
-        leaderboardBody.appendChild(row);
+                    leaderboardBody.appendChild(row);
                 });
             } catch (err) {
-            console.error('Failed to fetch leaderboard:', err);
-            leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #ff4444;">Failed to load data</td></tr>';
-        }
+                console.error('Failed to fetch leaderboard:', err);
+                leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #ff4444;">Failed to load data</td></tr>';
+            }
         }
 
         // Close modal when clicking outside
