@@ -290,60 +290,46 @@
             leaderboardModal.style.display = 'flex';
             fetchLeaderboard();
         }
+                });
+        clearTimeout(timeoutId);
 
-        function closeLeaderboard() {
-            leaderboardModal.style.display = 'none';
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
         }
 
-        async function fetchLeaderboard() {
-            leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Loading...</td></tr>';
+        const data = await res.json();
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        leaderboardBody.innerHTML = '';
+        if (!data.leaderboard || data.leaderboard.length === 0) {
+            leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No data available</td></tr>';
+            return;
+        }
 
-            try {
-                const res = await fetch('/api/leaderboard/mmr?limit=10', {
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
+        data.leaderboard.forEach((user, index) => {
+            const row = document.createElement('tr');
 
-                if (!res.ok) {
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
+            // Rank styling
+            let rankDisplay = `#${index + 1}`;
+            if (index === 0) rankDisplay = '🥇';
+            if (index === 1) rankDisplay = '🥈';
+            if (index === 2) rankDisplay = '🥉';
 
-                const data = await res.json();
-
-                leaderboardBody.innerHTML = '';
-                if (!data.leaderboard || data.leaderboard.length === 0) {
-                    leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No data available</td></tr>';
-                    return;
-                }
-
-                data.leaderboard.forEach((user, index) => {
-                    const row = document.createElement('tr');
-
-                    // Rank styling
-                    let rankDisplay = `#${index + 1}`;
-                    if (index === 0) rankDisplay = '🥇';
-                    if (index === 1) rankDisplay = '🥈';
-                    if (index === 2) rankDisplay = '🥉';
-
-                    row.innerHTML = `
+            row.innerHTML = `
                         <td style="font-size: 1.2em;">${rankDisplay}</td>
                         <td style="color: ${user.username === username ? '#00c6ff' : 'white'}; font-weight: bold;">${user.username}</td>
                         <td style="color: #ffd700;">${user.mmr}</td>
                     `;
-                    leaderboardBody.appendChild(row);
-                });
+            leaderboardBody.appendChild(row);
+        });
             } catch (err) {
-                if (err.name === 'AbortError') {
-                    console.error('Leaderboard fetch timed out');
-                    leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #ff4444;">Request timed out.<br>Check your connection.</td></tr>';
-                } else {
-                    console.error('Failed to fetch leaderboard:', err);
-                    leaderboardBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color: #ff4444;">Failed to load data.<br>${err.message}</td></tr>`;
-                }
+            if (err.name === 'AbortError') {
+                console.error('Leaderboard fetch timed out');
+                leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #ff4444;">Request timed out.<br>Check your connection.</td></tr>';
+            } else {
+                console.error('Failed to fetch leaderboard:', err);
+                leaderboardBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color: #ff4444;">Failed to load data.<br>${err.message}</td></tr>`;
             }
+        }
         }
 
         // Close modal when clicking outside
