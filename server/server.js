@@ -53,27 +53,16 @@ io.on('connection', (socket) => {
 
     // Player authentication
     socket.on('authenticate', async (data) => {
-        const { userId, username, fingerprint } = data;
+        const { userId, username } = data;
         connectedPlayers.set(userId, {
             socketId: socket.id,
             username: username,
-            fingerprint: fingerprint,
             inRoom: null
         });
         socket.userId = userId;
         socket.username = username;
-        socket.fingerprint = fingerprint;
-        console.log(`✅ Player authenticated: ${username} (${userId}) [FP: ${fingerprint}]`);
+        console.log(`✅ Player authenticated: ${username} (${userId})`);
         const user = await User.findById(userId); // DB 조회 필요
-
-        // Update last_fingerprint
-        if (user && fingerprint) {
-            try {
-                await db.query('UPDATE users SET last_fingerprint = $1 WHERE id = $2', [fingerprint, userId]);
-            } catch (err) {
-                console.error('Failed to update fingerprint:', err);
-            }
-        }
 
         // [추가] 밴 확인
         if (user && user.is_banned) {
@@ -103,8 +92,7 @@ io.on('connection', (socket) => {
             userId: socket.userId,
             username: socket.username,
             socketId: socket.id,
-            mmr: myMMR, // [추가] MMR 정보 포함
-            fingerprint: socket.fingerprint
+            mmr: myMMR // [추가] MMR 정보 포함
         };
 
         const result = roomManager.quickMatch(player);
@@ -182,7 +170,7 @@ io.on('connection', (socket) => {
             const [p1, p2] = room.players;
             // Pass character selections to GameSession
             const startTime = Date.now(); // [추가] 게임 시작 시간 기록
-            const gameSession = new GameSession(roomId, p1, p2, p1.charId, p2.charId, p1.fingerprint, p2.fingerprint, async (roomId, reason, scores) => {
+            const gameSession = new GameSession(roomId, p1, p2, p1.charId, p2.charId, async (roomId, reason, scores) => {
                 // Game Over Callback (MMR Update)
                 io.to(roomId).emit('roundEnd', { reason, scores });
 
@@ -222,8 +210,8 @@ io.on('connection', (socket) => {
                             // [추가] 매치 기록 저장
                             const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
                             await db.query(
-                                'INSERT INTO match_history (player1_id, player2_id, winner_id, duration_seconds, p1_fingerprint, p2_fingerprint) VALUES ($1, $2, $3, $4, $5, $6)',
-                                [p1.userId, p2.userId, winnerId, durationSeconds, p1.fingerprint, p2.fingerprint]
+                                'INSERT INTO match_history (player1_id, player2_id, winner_id, duration_seconds) VALUES ($1, $2, $3, $4)',
+                                [p1.userId, p2.userId, winnerId, durationSeconds]
                             );
                             console.log(`📝 Match recorded: ${durationSeconds}s`);
                         }

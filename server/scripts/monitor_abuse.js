@@ -41,22 +41,6 @@ const monitorAbuse = async () => {
             await banUser(match.player2_id, `Detected ${match.match_count} repeated matches with same opponent in ${TIME_WINDOW_MINUTES}m`);
         }
 
-        // 3. Detect Multi-Accounting (Fingerprint)
-        // Find fingerprints used by >= 3 unique accounts
-        const multiAccountAbusers = await db.query(`
-            SELECT last_fingerprint, COUNT(DISTINCT id) as user_count, array_agg(id) as user_ids
-            FROM users
-            WHERE last_fingerprint IS NOT NULL
-            GROUP BY last_fingerprint
-            HAVING COUNT(DISTINCT id) >= 3
-        `);
-
-        for (const group of multiAccountAbusers.rows) {
-            for (const userId of group.user_ids) {
-                await banUser(userId, `Detected multi-accounting: Fingerprint shared by ${group.user_count} accounts`);
-            }
-        }
-
     } catch (error) {
         console.error('❌ Monitor Error:', error);
     }
