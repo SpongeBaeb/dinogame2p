@@ -343,6 +343,15 @@ function calculateMMRChange(winnerMMR, loserMMR) {
     return { winnerChange, loserChange };
 }
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('🔥 Unhandled Error:', err);
+    res.status(500).json({
+        error: 'Internal Server Error',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    });
+});
+
 // Start server
 const startServer = async () => {
     try {

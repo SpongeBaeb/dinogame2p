@@ -1,16 +1,15 @@
 <!DOCTYPE html>
 <html lang="ko">
 
+<!DOCTYPE html>
+<html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <title>DinoJam - Main Menu</title>
     <link rel="stylesheet" href="css/game.css">
     <style>
         body {
-            background-color: #111;
-            color: white;
-
-
             background-color: #111;
             color: white;
             font-family: 'Consolas', monospace;
@@ -85,6 +84,11 @@
             color: white;
         }
 
+        .btn-leaderboard {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: black;
+        }
+
         .footer {
             position: absolute;
             bottom: 20px;
@@ -136,57 +140,53 @@
 
         .modal-content {
             background-color: #222;
-            padding: 20px;
-            border: 2px solid #ffcc00;
+            margin: auto;
+            padding: 30px;
             border-radius: 10px;
             width: 80%;
             max-width: 600px;
-            max-height: 80%;
-            overflow-y: auto;
-            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
             position: relative;
+            text-align: center;
         }
 
         .close-btn {
+            color: #aaa;
             position: absolute;
             top: 10px;
             right: 20px;
-            color: #aaa;
             font-size: 28px;
             font-weight: bold;
             cursor: pointer;
         }
 
-        .close-btn:hover {
+        .close-btn:hover,
+        .close-btn:focus {
             color: white;
+            text-decoration: none;
+            cursor: pointer;
         }
 
-        table {
+        .modal table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
-            color: white;
         }
 
-        th,
-        td {
+        .modal th,
+        .modal td {
             padding: 10px;
             border-bottom: 1px solid #444;
-            text-align: center;
+            text-align: left;
         }
 
-        th {
+        .modal th {
             background-color: #333;
             color: #ffcc00;
         }
 
-        tr:nth-child(even) {
-            background-color: #2a2a2a;
-        }
-
-        .btn-leaderboard {
-            background: linear-gradient(45deg, #FFD700, #FFA500);
-            color: black;
+        .modal tr:last-child td {
+            border-bottom: none;
         }
     </style>
 </head>
@@ -297,11 +297,28 @@
 
         async function fetchLeaderboard() {
             leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Loading...</td></tr>';
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
             try {
-                const res = await fetch('/api/leaderboard/mmr?limit=10');
+                const res = await fetch('/api/leaderboard/mmr?limit=10', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+
                 const data = await res.json();
 
                 leaderboardBody.innerHTML = '';
+                if (!data.leaderboard || data.leaderboard.length === 0) {
+                    leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No data available</td></tr>';
+                    return;
+                }
+
                 data.leaderboard.forEach((user, index) => {
                     const row = document.createElement('tr');
 
@@ -319,8 +336,13 @@
                     leaderboardBody.appendChild(row);
                 });
             } catch (err) {
-                console.error('Failed to fetch leaderboard:', err);
-                leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #ff4444;">Failed to load data</td></tr>';
+                if (err.name === 'AbortError') {
+                    console.error('Leaderboard fetch timed out');
+                    leaderboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #ff4444;">Request timed out.<br>Check your connection.</td></tr>';
+                } else {
+                    console.error('Failed to fetch leaderboard:', err);
+                    leaderboardBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color: #ff4444;">Failed to load data.<br>${err.message}</td></tr>`;
+                }
             }
         }
 
