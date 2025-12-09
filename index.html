@@ -6,12 +6,37 @@
     <title>DinoJam - Main Menu</title>
     <link rel="stylesheet" href="css/game.css">
     <style>
+        @font-face {
+            font-family: 'supply-center.regular';
+            /* 사용할 폰트 이름 */
+            src: url('assets/fonts/supply-center.regular.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            font-family: 'supply-center.regular', 'Consolas', monospace;
+        }
+
         body {
-            background-color: #111;
-            color: white;
+            background: linear-gradient(135deg,
+                    #ff0000 0%,
+                    /* 빨강 */
+                    #ff8800 15%,
+                    /* 주황 */
+                    #ffff00 30%,
+                    /* 노랑 */
+                    #00ff00 45%,
+                    /* 초록 */
+                    #00ffff 60%,
+                    /* 청록 */
+                    #0000ff 75%,
+                    /* 보라 */
+                    #ff0000 100%
+                    /* 빨강 (반복) */
+                );
+            animation: rainbow 10s ease infinite;
 
-
-            background-color: #111;
             color: white;
             font-family: 'Consolas', monospace;
             display: flex;
@@ -23,6 +48,20 @@
             overflow: hidden;
         }
 
+        @keyframes rainbow {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
         #background-layer {
             position: fixed;
             top: -5%;
@@ -30,33 +69,39 @@
             width: 110%;
             height: 110%;
             background-image: url('assets/main.png');
-            background-size: cover;
+            background-size: auto;
             background-position: center;
+            background-repeat: no-repeat;
             z-index: -1;
             transition: transform 0.1s ease-out;
+            -webkit-mask-image: radial-gradient(circle,
+                    rgba(0, 0, 0, 1) 50%,
+                    rgba(0, 0, 0, 0.5) 80%,
+                    rgba(0, 0, 0, 0) 100%);
+            mask-image: radial-gradient(circle,
+                    rgba(0, 0, 0, 1) 50%,
+                    rgba(0, 0, 0, 0.5) 80%,
+                    rgba(0, 0, 0, 0) 100%);
+
+
         }
+
 
         h1 {
-            font-size: 60px;
-            color: #ffcc00;
-            text-shadow: 4px 4px 0 #ff4444;
-            margin-bottom: 10px;
-        }
-
-        p {
-            color: #aaa;
-            margin-bottom: 50px;
+            font-size: 80px;
+            text-shadow: 10px 10px 0 #404040;
+            margin-bottom: 20px;
         }
 
         .menu-btn {
             width: 400px;
+            height: 140px;
             padding: 20px;
-            margin: 10px;
+            margin: 0px;
             font-size: 24px;
             border: none;
             border-radius: 10px;
             cursor: pointer;
-            font-family: inherit;
             font-weight: bold;
             transition: transform 0.1s;
         }
@@ -66,22 +111,42 @@
         }
 
         .btn-local {
-            background: linear-gradient(45deg, #ff9100, #ff4444);
+            background-image: url('assets/red.png');
+            background-size: 100% auto;
+            /* 너비는 100%, 높이는 비율 유지 */
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent;
             color: white;
         }
 
         .btn-online {
-            background: linear-gradient(45deg, #007bff, #00c6ff);
+            background-image: url('assets/yellow.png');
+            background-size: 100% auto;
+            /* 너비는 100%, 높이는 비율 유지 */
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent;
             color: white;
         }
 
         .btn-single {
-            background: linear-gradient(45deg, #9c27b0, #e91e63);
+            background-image: url('assets/green.png');
+            background-size: 100% auto;
+            /* 너비는 100%, 높이는 비율 유지 */
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent;
             color: white;
         }
 
         .btn-training {
-            background: linear-gradient(45deg, #f9a825, #ff6f00);
+            background-image: url('assets/black_long.png');
+            background-size: 100% auto;
+            /* 너비는 100%, 높이는 비율 유지 */
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent;
             color: white;
         }
 
@@ -100,24 +165,26 @@
         }
 
         .user-info span {
-            color: #ffcc00;
             font-size: 16px;
         }
+
 
         .user-info button {
             margin-left: 10px;
             padding: 5px 15px;
             background: #ff4444;
-            color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
         }
 
         .user-info a {
-            color: #00c6ff;
             text-decoration: none;
             margin-left: 10px;
+        }
+
+        .user-info a:hover {
+            opacity: 0.5;
         }
 
         /* Modal Styles */
@@ -185,13 +252,19 @@
         }
 
         .btn-leaderboard {
-            background: linear-gradient(45deg, #FFD700, #FFA500);
-            color: black;
+            background-image: url('assets/blue.png');
+            background-size: 100% auto;
+            /* 너비는 100%, 높이는 비율 유지 */
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent;
+            color: white;
         }
     </style>
 </head>
 
 <body>
+
     <div id="background-layer"></div>
     <div class="user-info" id="user-info">
         <span id="username-display"></span>
@@ -199,35 +272,43 @@
         <a href="login.html" id="login-link" style="display: none;">Login</a>
     </div>
 
-    <h1>🦖 DinoJam 🦕</h1>
-    <p>Choose Your Battle Mode</p>
+    <h1>
+        <span style="color: #ff4444;">D</span>
+        <span style="color: #ff6644;">i</span>
+        <span style="color: #ff8844;">n</span>
+        <span style="color: #ffaa44;">o</span>
+        <span style="color: #ffcc00;">J</span>
+        <span style="color: #ffee00;">a</span>
+        <span style="color: #ffff44;">m</span>
+    </h1>
 
     <button class="menu-btn btn-local" onclick="location.href='local.html'">
-        🎮 1 PC / 2 Players (Local)
+        Local Play 2P
         <div style="font-size:14px; font-weight:normal; margin-top:5px;">Play on the same keyboard</div>
     </button>
 
     <button class="menu-btn btn-online" onclick="location.href='online.html'">
-        🌐 Online Multiplayer
+        Multiplayer
         <div style="font-size:14px; font-weight:normal; margin-top:5px;">Play via Wi-Fi / Internet</div>
     </button>
 
     <button class="menu-btn btn-single" onclick="location.href='single.html'">
-        🤖 Single Player (vs AI)
+        Single Player
         <div style="font-size:14px; font-weight:normal; margin-top:5px;">Play against computer AI</div>
     </button>
-
-    <button class="menu-btn btn-training" onclick="location.href='training.html'">
-        🧠 AI Training Mode
-        <div style="font-size:14px; font-weight:normal; margin-top:5px;">Train AI with reinforcement learning</div>
-    </button>
-
     <button class="menu-btn btn-leaderboard" onclick="openLeaderboard()">
         🏆 Leaderboard
         <div style="font-size:14px; font-weight:normal; margin-top:5px;">Top Players Ranking</div>
     </button>
 
-    <div class="footer">Developed by User & Gemini AI</div>
+    <button class="menu-btn btn-training" onclick="location.href='training.html'">
+        AI Training Mode
+        <div style="font-size:14px; font-weight:normal; margin-top:5px;">Train AI with reinforcement learning</div>
+    </button>
+
+
+
+    <div class="footer">Developed by Steve</div>
 
     <!-- Leaderboard Modal -->
     <div id="leaderboard-modal" class="modal">
@@ -270,8 +351,8 @@
             `;
         } else {
             userInfoDiv.innerHTML = `
-                <a href="login.html" style="text-decoration:none; color:#00c6ff; font-weight:bold; margin-right:15px;">Login</a>
-                <a href="register.html" style="text-decoration:none; color:#ffcc00; font-weight:bold;">Register</a>
+                <a href="login.html" style="text-decoration:none; color:black; font-weight:bold; margin-right:15px;text-shadow: 2px 2px 0 white;">Login</a>
+                <a href="register.html" style="text-decoration:none; color:black; font-weight:bold;;text-shadow: 2px 2px 0 white">Register</a>
             `;
         }
 
