@@ -572,132 +572,6 @@
         let selAnimTimer = 0;
         let lastMMRChange = null;
 
-        // ===========================================
-        // CLIENT-SIDE PREDICTION SYSTEM
-        // ===========================================
-
-        // Physics constants (must match server)
-        const LOCAL_CONFIG = {
-            gravity: 0.4,
-            jumpForce: 10,
-            sneakOffset: 6
-        };
-
-        // Prediction state
-        let localPlayerState = null;   // Local predicted player state
-        let pendingInputs = [];        // Inputs sent but not yet confirmed by server
-        let inputSequence = 0;         // Sequence number for inputs
-        let predictionEnabled = true;  // Toggle for debugging
-
-        /**
-         * Apply input locally for immediate response
-         */
-        function applyLocalInput(input) {
-            if (!localPlayerState || !predictionEnabled) return;
-
-            if (input.type === 'jump') {
-                if (localPlayerState.jumpCount < 2) {
-                    localPlayerState.vy = LOCAL_CONFIG.jumpForce;
-                    localPlayerState.isJumping = true;
-                    localPlayerState.jumpCount++;
-                }
-            } else if (input.type === 'sneak_start') {
-                localPlayerState.isSneaking = true;
-                if (localPlayerState.y > 40) {
-                    localPlayerState.vy = -6;  // Fast fall
-                }
-            } else if (input.type === 'sneak_end') {
-                localPlayerState.isSneaking = false;
-            }
-
-            // Store input for reconciliation
-            pendingInputs.push({ ...input, time: performance.now() });
-        }
-
-        /**
-         * Update local physics simulation (called every frame)
-         */
-        function updateLocalPhysics() {
-            if (!localPlayerState || !predictionEnabled) return;
-
-            // Apply gravity
-            if (localPlayerState.y > 40 || localPlayerState.vy !== 0) {
-                localPlayerState.vy -= LOCAL_CONFIG.gravity;
-                localPlayerState.y += localPlayerState.vy;
-
-                // Ground collision
-                if (localPlayerState.y <= 40) {
-                    localPlayerState.y = 40;
-                    localPlayerState.vy = 0;
-                    localPlayerState.isJumping = false;
-                    localPlayerState.jumpCount = 0;
-                }
-            }
-        }
-
-        /**
-         * Reconcile local prediction with server state
-         */
-        function reconcileWithServer(serverState) {
-            if (!predictionEnabled) return;
-
-            // Get my player state from server
-            const myServerState = myRole === 'player1' ? serverState.p1 : serverState.p2;
-
-            if (!myServerState) return;
-
-            // Check if I'm the runner (prediction only applies to runner)
-            const isP1 = myRole === 'player1';
-            const isRunner = (isP1 && serverState.round === 1) || (!isP1 && serverState.round === 2);
-
-            if (!isRunner) {
-                localPlayerState = null;
-                pendingInputs = [];
-                return;
-            }
-
-            // Remove acknowledged inputs (processed by server)
-            const serverSeq = serverState.lastProcessedInput || 0;
-            pendingInputs = pendingInputs.filter(input => input.seq > serverSeq);
-
-            // Reset to authoritative server state
-            localPlayerState = {
-                x: myServerState.x,
-                y: myServerState.y,
-                vy: myServerState.vy || 0,
-                isJumping: myServerState.isJumping,
-                jumpCount: myServerState.jumpCount || 0,
-                isSneaking: myServerState.isSneaking,
-                char: myServerState.char,
-                facingRight: myServerState.facingRight,
-                role: myServerState.role
-            };
-
-            // Re-apply pending inputs that server hasn't processed yet
-            pendingInputs.forEach(input => {
-                // Apply input
-                if (input.type === 'jump' && localPlayerState.jumpCount < 2) {
-                    localPlayerState.vy = LOCAL_CONFIG.jumpForce;
-                    localPlayerState.isJumping = true;
-                    localPlayerState.jumpCount++;
-                } else if (input.type === 'sneak_start') {
-                    localPlayerState.isSneaking = true;
-                } else if (input.type === 'sneak_end') {
-                    localPlayerState.isSneaking = false;
-                }
-            });
-        }
-
-        /**
-         * Get the state to render (predicted or server)
-         */
-        function getMyRenderState(serverState) {
-            if (!predictionEnabled || !localPlayerState) {
-                return myRole === 'player1' ? serverState.p1 : serverState.p2;
-            }
-            return localPlayerState;
-        }
-
         // --- Socket Events ---
         socket.on('connect', () => {
             connectionStatus.textContent = `✅ Connected as ${username}`;
@@ -784,9 +658,6 @@
             lastStateTime = performance.now();
             interpolationAlpha = 0;
 
-            // Reconcile prediction with server state
-            reconcileWithServer(serverState);
-
             // Start local render loop if not already running
             if (!gameLoopId) {
                 gameLoopId = requestAnimationFrame(localRenderLoop);
@@ -806,9 +677,6 @@
 
             // Increment frame counter for throttling
             frameCounter++;
-
-            // Update local physics for prediction (every frame)
-            updateLocalPhysics();
 
             // Render with interpolation
             renderGame(targetServerState, interpolationAlpha);
@@ -1056,25 +924,9 @@
             els.staminaBox.style.left = (attacker.x + staminaOffset) + 'px';
             els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
 
-            // 2. Render Players (with prediction for local player)
-            // Determine which player I am and if I'm the runner
-            const isP1 = myRole === 'player1';
-            const isRunner = (isP1 && state.round === 1) || (!isP1 && state.round === 2);
-
-            // Use predicted state for my runner character, server state for everything else
-            let p1State = state.p1;
-            let p2State = state.p2;
-
-            if (isRunner && localPlayerState) {
-                if (isP1) {
-                    p1State = localPlayerState;
-                } else {
-                    p2State = localPlayerState;
-                }
-            }
-
-            renderPlayer(els.p1, p1State, state.cooldowns, alpha);
-            renderPlayer(els.p2, p2State, state.cooldowns, alpha);
+            // 2. Render Players (with interpolation for smoothness)
+            renderPlayer(els.p1, state.p1, state.cooldowns, alpha);
+            renderPlayer(els.p2, state.p2, state.cooldowns, alpha);
 
             // 3. Render Obstacles
             renderObstacles(state.obstacles);
@@ -1262,11 +1114,7 @@
 
             if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
                 if (isRunner) {
-                    // Apply locally first for instant response
-                    const input = { type: 'jump', seq: inputSequence++ };
-                    applyLocalInput(input);
-                    // Then send to server
-                    socket.emit('playerInput', { roomId: currentRoom, input });
+                    socket.emit('playerInput', { roomId: currentRoom, input: { type: 'jump' } });
                 } else {
                     socket.emit('playerInput', { roomId: currentRoom, input: { type: 'fire_bullet' } });
                 }
@@ -1274,11 +1122,7 @@
 
             if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
                 if (isRunner) {
-                    // Apply locally first for instant response
-                    const input = { type: 'sneak_start', seq: inputSequence++ };
-                    applyLocalInput(input);
-                    // Then send to server
-                    socket.emit('playerInput', { roomId: currentRoom, input });
+                    socket.emit('playerInput', { roomId: currentRoom, input: { type: 'sneak_start' } });
                 } else {
                     socket.emit('playerInput', { roomId: currentRoom, input: { type: 'charge_start' } });
                 }
@@ -1293,11 +1137,7 @@
 
             if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
                 if (isRunner) {
-                    // Apply locally first for instant response
-                    const input = { type: 'sneak_end', seq: inputSequence++ };
-                    applyLocalInput(input);
-                    // Then send to server
-                    socket.emit('playerInput', { roomId: currentRoom, input });
+                    socket.emit('playerInput', { roomId: currentRoom, input: { type: 'sneak_end' } });
                 } else {
                     socket.emit('playerInput', { roomId: currentRoom, input: { type: 'charge_end' } });
                 }
