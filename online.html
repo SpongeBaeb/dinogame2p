@@ -572,6 +572,61 @@
         let selAnimTimer = 0;
         let lastMMRChange = null;
 
+        // ===========================================
+        // DELTA STATE COMPRESSION - CLIENT SIDE
+        // ===========================================
+
+        // Accumulated state from server deltas
+        let accumulatedState = null;
+
+        /**
+         * Apply delta update to accumulated state
+         */
+        function applyDelta(currentState, delta) {
+            if (!currentState || delta.full) {
+                // Full state - replace everything
+                return { ...delta };
+            }
+
+            // Clone current state
+            const newState = { ...currentState };
+
+            // Apply scalar changes
+            if (delta.timer !== undefined) newState.timer = delta.timer;
+            if (delta.round !== undefined) newState.round = delta.round;
+            if (delta.isPlaying !== undefined) newState.isPlaying = delta.isPlaying;
+            if (delta.isGameOver !== undefined) newState.isGameOver = delta.isGameOver;
+            if (delta.scores !== undefined) newState.scores = delta.scores;
+            if (delta.stamina !== undefined) newState.stamina = delta.stamina;
+            if (delta.cooldowns !== undefined) newState.cooldowns = delta.cooldowns;
+            if (delta.speed !== undefined) newState.speed = delta.speed;
+            if (delta.isCharging !== undefined) newState.isCharging = delta.isCharging;
+
+            // Apply player 1 delta (merge, don't replace)
+            if (delta.p1) {
+                newState.p1 = { ...currentState.p1, ...delta.p1 };
+            }
+
+            // Apply player 2 delta (merge, don't replace)
+            if (delta.p2) {
+                newState.p2 = { ...currentState.p2, ...delta.p2 };
+            }
+
+            // Obstacles - full replace when changed
+            if (delta.obstacles !== undefined) {
+                newState.obstacles = delta.obstacles;
+            }
+
+            // Explosions - append (one-shot events)
+            if (delta.explosions && delta.explosions.length > 0) {
+                newState.explosions = delta.explosions;
+            } else if (!delta.full) {
+                newState.explosions = [];
+            }
+
+            return newState;
+        }
+
         // --- Socket Events ---
         socket.on('connect', () => {
             connectionStatus.textContent = `✅ Connected as ${username}`;
@@ -651,10 +706,13 @@
             startGameLoop();
         });
 
-        socket.on('gameState', (serverState) => {
+        socket.on('gameState', (serverData) => {
+            // Apply delta to accumulated state
+            accumulatedState = applyDelta(accumulatedState, serverData);
+
             // Store states for interpolation
             lastServerState = targetServerState;
-            targetServerState = serverState;
+            targetServerState = accumulatedState;
             lastStateTime = performance.now();
             interpolationAlpha = 0;
 

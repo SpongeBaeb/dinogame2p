@@ -295,33 +295,161 @@ io.on('connection', (socket) => {
     });
 });
 
+// Previous state tracking for delta compression
+const prevStates = new Map();  // roomId -> previous state snapshot
+
+/**
+ * Generate delta between previous and current state
+ * Only includes changed values to minimize network payload
+ */
+function generateDelta(prevState, newState, scores) {
+    if (!prevState) {
+        // First tick - send full state
+        return {
+            full: true,
+            timer: Math.ceil(newState.timer),
+            round: newState.round,
+            isPlaying: newState.isPlaying,
+            isGameOver: newState.isGameOver,
+            scores: scores,
+            p1: newState.p1,
+            p2: newState.p2,
+            obstacles: newState.obstacles,
+            explosions: newState.explosions,
+            stamina: newState.stamina,
+            cooldowns: newState.cooldowns,
+            speed: newState.speed,
+            isCharging: newState.isCharging
+        };
+    }
+
+    const delta = { tick: Date.now() };
+
+    // Timer - every second change
+    const newTimer = Math.ceil(newState.timer);
+    if (Math.ceil(prevState.timer) !== newTimer) {
+        delta.timer = newTimer;
+    }
+
+    // Round/Game state - rare changes
+    if (prevState.round !== newState.round) delta.round = newState.round;
+    if (prevState.isPlaying !== newState.isPlaying) delta.isPlaying = newState.isPlaying;
+    if (prevState.isGameOver !== newState.isGameOver) delta.isGameOver = newState.isGameOver;
+
+    // Scores
+    if (prevState.scores?.p1 !== scores.p1 || prevState.scores?.p2 !== scores.p2) {
+        delta.scores = scores;
+    }
+
+    // Player 1 - only changed properties
+    const p1Delta = {};
+    if (prevState.p1.y !== newState.p1.y) p1Delta.y = newState.p1.y;
+    if (prevState.p1.vy !== newState.p1.vy) p1Delta.vy = newState.p1.vy;
+    if (prevState.p1.isJumping !== newState.p1.isJumping) p1Delta.isJumping = newState.p1.isJumping;
+    if (prevState.p1.isSneaking !== newState.p1.isSneaking) p1Delta.isSneaking = newState.p1.isSneaking;
+    if (prevState.p1.jumpCount !== newState.p1.jumpCount) p1Delta.jumpCount = newState.p1.jumpCount;
+    if (prevState.p1.facingRight !== newState.p1.facingRight) p1Delta.facingRight = newState.p1.facingRight;
+    if (Object.keys(p1Delta).length > 0) delta.p1 = p1Delta;
+
+    // Player 2 - only changed properties
+    const p2Delta = {};
+    if (prevState.p2.y !== newState.p2.y) p2Delta.y = newState.p2.y;
+    if (prevState.p2.vy !== newState.p2.vy) p2Delta.vy = newState.p2.vy;
+    if (prevState.p2.isJumping !== newState.p2.isJumping) p2Delta.isJumping = newState.p2.isJumping;
+    if (prevState.p2.isSneaking !== newState.p2.isSneaking) p2Delta.isSneaking = newState.p2.isSneaking;
+    if (prevState.p2.jumpCount !== newState.p2.jumpCount) p2Delta.jumpCount = newState.p2.jumpCount;
+    if (prevState.p2.facingRight !== newState.p2.facingRight) p2Delta.facingRight = newState.p2.facingRight;
+    if (Object.keys(p2Delta).length > 0) delta.p2 = p2Delta;
+
+    // Obstacles - always send if changed (complex to diff)
+    if (JSON.stringify(prevState.obstacles) !== JSON.stringify(newState.obstacles)) {
+        delta.obstacles = newState.obstacles;
+    }
+
+    // Explosions - always include if any (one-shot events)
+    if (newState.explosions && newState.explosions.length > 0) {
+        delta.explosions = newState.explosions;
+    }
+
+    // Stamina - when changed
+    if (Math.floor(prevState.stamina) !== Math.floor(newState.stamina)) {
+        delta.stamina = newState.stamina;
+    }
+
+    // Cooldowns
+    if (prevState.cooldowns?.wall !== newState.cooldowns?.wall ||
+        prevState.cooldowns?.bullet !== newState.cooldowns?.bullet) {
+        delta.cooldowns = newState.cooldowns;
+    }
+
+    // Speed - when changed
+    if (prevState.speed !== newState.speed) {
+        delta.speed = newState.speed;
+    }
+
+    // Charging
+    if (prevState.isCharging !== newState.isCharging) {
+        delta.isCharging = newState.isCharging;
+    }
+
+    return delta;
+}
+
 // Global Game Loop (60 FPS)
 const GAME_LOOP_RATE = 1000 / 60;
+let tickCounter = 0;
+
 setInterval(() => {
-    // console.log(`Game Loop Tick. Sessions: ${gameSessions.size}`); 
+    tickCounter++;
 
     gameSessions.forEach((session, roomId) => {
-        // console.log(`Checking session ${roomId}, isPlaying: ${session.gameState.isPlaying}`);
-
-
         const state = session.update();
+        const prevState = prevStates.get(roomId);
 
-        // console.log(`Emitting state for room ${roomId}, Timer: ${state.timer}`);
+        // Every 60 ticks (1 second), send full state for recovery/sync
+        const forceFullSync = (tickCounter % 60 === 0);
 
-        // Broadcast game state to room
-        io.to(roomId).emit('gameState', {
-            timer: Math.ceil(state.timer),
+        if (forceFullSync || !prevState) {
+            // Full state sync
+            io.to(roomId).emit('gameState', {
+                full: true,
+                timer: Math.ceil(state.timer),
+                round: state.round,
+                isPlaying: state.isPlaying,
+                isGameOver: state.isGameOver,
+                scores: session.scores,
+                p1: state.p1,
+                p2: state.p2,
+                obstacles: state.obstacles,
+                explosions: state.explosions,
+                stamina: state.stamina,
+                cooldowns: state.cooldowns,
+                speed: state.speed,
+                isCharging: state.isCharging
+            });
+        } else {
+            // Delta compression - only send changes
+            const delta = generateDelta(prevState, state, session.scores);
+
+            // Only emit if there are meaningful changes (more than just tick)
+            if (Object.keys(delta).length > 1) {
+                io.to(roomId).emit('gameState', delta);
+            }
+        }
+
+        // Store current state snapshot for next delta comparison
+        prevStates.set(roomId, {
+            timer: state.timer,
             round: state.round,
             isPlaying: state.isPlaying,
             isGameOver: state.isGameOver,
-            scores: session.scores,
-            // Full State Sync
-            p1: state.p1,
-            p2: state.p2,
+            scores: { ...session.scores },
+            p1: { ...state.p1 },
+            p2: { ...state.p2 },
             obstacles: state.obstacles,
             explosions: state.explosions,
             stamina: state.stamina,
-            cooldowns: state.cooldowns,
+            cooldowns: { ...state.cooldowns },
             speed: state.speed,
             isCharging: state.isCharging
         });
@@ -329,6 +457,10 @@ setInterval(() => {
         // Clear one-shot events after broadcast
         state.explosions = [];
 
+        // Clean up prevState when game ends
+        if (state.isGameOver) {
+            setTimeout(() => prevStates.delete(roomId), 5000);
+        }
     });
 }, GAME_LOOP_RATE);
 
