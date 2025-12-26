@@ -198,6 +198,8 @@
             background-repeat: no-repeat;
             background-size: auto 64px;
             z-index: 15;
+            will-change: transform, background-position;
+            backface-visibility: hidden;
         }
 
         #player2.cooldown {
@@ -233,6 +235,8 @@
             background-size: auto 96px;
             background-repeat: no-repeat;
             image-rendering: pixelated;
+            will-change: transform, background-position;
+            backface-visibility: hidden;
         }
 
         /* Character Selection UI */
@@ -625,17 +629,53 @@
             updateSelection();
         }
 
+        // Character selection card elements cache
+        let charCards = [];
+        let charCardsInitialized = false;
+
+        function initCharacterCards() {
+            if (charCardsInitialized) return;
+            const grid = document.getElementById('char-grid');
+            grid.innerHTML = '';
+
+            CONFIG.characters.forEach((char, index) => {
+                const card = document.createElement('div');
+                card.className = 'char-card';
+
+                const preview = document.createElement('div');
+                preview.className = 'char-preview';
+                preview.style.backgroundImage = `url('assets/${char}.png')`;
+                card.appendChild(preview);
+
+                const name = document.createElement('div');
+                name.className = 'char-name';
+                name.innerText = char;
+                card.appendChild(name);
+
+                const p1Cursor = document.createElement('div');
+                p1Cursor.className = 'p1-cursor';
+                p1Cursor.style.display = 'none';
+                card.appendChild(p1Cursor);
+
+                grid.appendChild(card);
+                charCards.push({ card, preview, p1Cursor });
+            });
+            charCardsInitialized = true;
+        }
+
         function updateSelection(timestamp) {
             if (!state.selectionPhase) return;
+
+            // Initialize cards once
+            if (!charCardsInitialized) {
+                initCharacterCards();
+            }
 
             // [NEW] Time-based animation logic
             const now = timestamp || performance.now();
             if (!lastSelTime) lastSelTime = now;
             const deltaTime = now - lastSelTime;
             lastSelTime = now;
-
-            const grid = document.getElementById('char-grid');
-            grid.innerHTML = '';
 
             // Update Animation
             selAnimTimer += deltaTime;
@@ -644,38 +684,32 @@
                 selAnimFrame = (selAnimFrame + 1) % 4;
             }
 
-            CONFIG.characters.forEach((char, index) => {
-                const card = document.createElement('div');
-                card.className = 'char-card';
-                if (index === p1SelIndex) card.classList.add('selected-p1');
-                if (index === p2SelIndex) card.classList.add('selected-p2');
+            // Update card visuals (no DOM creation, just property updates)
+            charCards.forEach((cached, index) => {
+                const { card, preview, p1Cursor } = cached;
+
+                // Update selection classes
+                card.classList.toggle('selected-p1', index === p1SelIndex);
 
                 // Lock visual
-                if ((p1Confirmed && index === p1SelIndex && index !== p2SelIndex) ||
-                    (p2Confirmed && index === p2SelIndex && index !== p1SelIndex)) {
+                if (p1Confirmed && index === p1SelIndex) {
                     card.style.opacity = '0.5';
+                } else {
+                    card.style.opacity = '1';
                 }
 
-                const preview = document.createElement('div');
-                preview.className = 'char-preview';
-                preview.style.backgroundImage = `url('assets/${char}.png')`;
+                // Update animation frame
                 preview.style.backgroundPosition = `-${selAnimFrame * 64}px 0`;
-                card.appendChild(preview);
 
-                const name = document.createElement('div');
-                name.className = 'char-name';
-                name.innerText = char;
-                card.appendChild(name);
-
+                // Update cursor
                 if (index === p1SelIndex) {
-                    const cursor = document.createElement('div');
-                    cursor.className = 'p1-cursor';
-                    cursor.innerText = p1Confirmed ? 'READY' : 'P1';
-                    card.appendChild(cursor);
+                    p1Cursor.style.display = 'block';
+                    p1Cursor.innerText = p1Confirmed ? 'READY' : 'P1';
+                } else {
+                    p1Cursor.style.display = 'none';
                 }
-
-                grid.appendChild(card);
             });
+
             if (p1Confirmed) {
                 // AI가 P2 캐릭터 자동 선택
                 if (!p2Confirmed) {

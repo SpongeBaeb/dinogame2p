@@ -226,8 +226,8 @@
             background-repeat: no-repeat;
             background-size: auto 64px;
             z-index: 15;
-            transition: transform 0.1s;
-            /* Smooth rotation */
+            will-change: transform, background-position;
+            backface-visibility: hidden;
         }
 
         #player2.cooldown {
@@ -241,6 +241,7 @@
             left: 0;
             z-index: 11;
             will-change: transform;
+            backface-visibility: hidden;
         }
 
         /* Character Selection UI */
@@ -395,7 +396,7 @@
         </div>
     </div>
     <div id="debug-overlay"
-        style="position: fixed; top: 0; left: 0; color: lime; z-index: 1000; background: rgba(0,0,0,0.5); padding: 5px; font-family: monospace; font-size: 14px;">
+        style="display: none; position: fixed; top: 0; left: 0; color: lime; z-index: 1000; background: rgba(0,0,0,0.5); padding: 5px; font-family: monospace; font-size: 14px;">
         Debug Info</div>
     <!-- Lobby Screen -->
     <div id="lobby-screen">
@@ -553,6 +554,17 @@
         let explosionPool = [];
         let currentRound = 1; // Moved to top level
 
+        // Performance optimization state
+        let frameCounter = 0;  // For UI throttling
+        const DEBUG_MODE = false;  // Set to false to disable debug overlay
+
+        // Client-side interpolation state
+        let lastServerState = null;
+        let targetServerState = null;
+        let lastStateTime = 0;
+        let interpolationAlpha = 0;
+        const SERVER_UPDATE_INTERVAL = 16;  // Expected ms between server updates
+
         // Character Selection State
         let selectedCharIndex = 0;
         let isCharSelected = false;
@@ -640,8 +652,42 @@
         });
 
         socket.on('gameState', (serverState) => {
-            renderGame(serverState);
+            // Store states for interpolation
+            lastServerState = targetServerState;
+            targetServerState = serverState;
+            lastStateTime = performance.now();
+            interpolationAlpha = 0;
+
+            // Start local render loop if not already running
+            if (!gameLoopId) {
+                gameLoopId = requestAnimationFrame(localRenderLoop);
+            }
         });
+
+        // Local render loop for smooth interpolation between server updates
+        function localRenderLoop(timestamp) {
+            if (!targetServerState) {
+                gameLoopId = requestAnimationFrame(localRenderLoop);
+                return;
+            }
+
+            // Calculate interpolation progress
+            const elapsed = performance.now() - lastStateTime;
+            interpolationAlpha = Math.min(1, elapsed / SERVER_UPDATE_INTERVAL);
+
+            // Increment frame counter for throttling
+            frameCounter++;
+
+            // Render with interpolation
+            renderGame(targetServerState, interpolationAlpha);
+
+            // Continue loop if game is playing
+            if (targetServerState.isPlaying && !targetServerState.isGameOver) {
+                gameLoopId = requestAnimationFrame(localRenderLoop);
+            } else {
+                gameLoopId = null;
+            }
+        }
 
         socket.on('roundEnd', (data) => {
             // Show round end message? 
@@ -781,8 +827,16 @@
             updateCharSelectUI();
             requestAnimationFrame(animateCharSelect);
         }
+        // Cached character card elements
+        let charCardElements = [];
+
         function updateCharSelectUI() {
-            document.querySelectorAll('.char-card').forEach((card, index) => {
+            // Initialize cache if needed
+            if (charCardElements.length === 0) {
+                charCardElements = Array.from(document.querySelectorAll('.char-card'));
+            }
+
+            charCardElements.forEach((card, index) => {
                 const charName = CONFIG.characters[index];
                 const isTaken = window.takenChars && window.takenChars.includes(charName);
 
@@ -806,8 +860,16 @@
                 }
             });
         }
+        // Cached preview elements for animation
+        let charPreviewElements = [];
+
         function animateCharSelect(timestamp) {
             if (charSelectScreen.style.display === 'none') return;
+
+            // Cache preview elements if needed
+            if (charPreviewElements.length === 0) {
+                charPreviewElements = Array.from(document.querySelectorAll('.char-preview'));
+            }
 
             // Animate sprites
             if (!selAnimTimer) selAnimTimer = timestamp;
@@ -815,7 +877,7 @@
                 selAnimFrame = (selAnimFrame + 1) % 4;
                 selAnimTimer = timestamp;
 
-                document.querySelectorAll('.char-preview').forEach((el, index) => {
+                charPreviewElements.forEach((el) => {
                     el.style.backgroundPosition = `-${selAnimFrame * 64}px 0`;
                 });
             }
@@ -830,34 +892,41 @@
             // For now, just rely on socket 'gameState' events
         }
 
-        function renderGame(state) {
-            const debugEl = document.getElementById('debug-overlay');
-            if (debugEl) {
-                debugEl.innerText = `R:${state.round} Play:${state.isPlaying} Over:${state.isGameOver} T:${state.timer.toFixed(1)}`;
+        function renderGame(state, alpha = 1) {
+            // Debug overlay (only when DEBUG_MODE is true)
+            if (DEBUG_MODE) {
+                const debugEl = document.getElementById('debug-overlay');
+                if (debugEl) {
+                    debugEl.innerText = `R:${state.round} Play:${state.isPlaying} Over:${state.isGameOver} T:${state.timer.toFixed(1)} α:${alpha.toFixed(2)}`;
+                }
             }
+
             // Update Round
             currentRound = state.round;
 
-            // 1. UI Updates
-            els.timer.innerText = state.timer;
-            if (state.timer <= 10) els.timer.classList.add('warning');
-            else els.timer.classList.remove('warning');
+            // 1. UI Updates (throttled to every 6 frames for performance)
+            if (frameCounter % 6 === 0) {
+                const timerVal = Math.ceil(state.timer);
+                els.timer.innerText = timerVal;
+                if (timerVal <= 10) els.timer.classList.add('warning');
+                else els.timer.classList.remove('warning');
 
-            els.p1Score.innerText = state.scores.p1;
-            els.p2Score.innerText = state.scores.p2;
+                els.p1Score.innerText = state.scores.p1;
+                els.p2Score.innerText = state.scores.p2;
 
-            // Stamina Bar
-            els.staminaBar.style.width = state.stamina + '%';
-            els.staminaText.innerText = Math.floor(state.stamina) + '%';
+                // Stamina Bar
+                els.staminaBar.style.width = state.stamina + '%';
+                els.staminaText.innerText = Math.floor(state.stamina) + '%';
+            }
 
-            // Position Stamina Box (Follow Attacker)
+            // Position Stamina Box (Follow Attacker - updated every frame for smoothness)
             const attacker = state.round === 1 ? state.p2 : state.p1;
             els.staminaBox.style.left = (attacker.x + staminaOffset) + 'px';
             els.staminaBox.style.bottom = (attacker.y + 40) + 'px';
 
-            // 2. Render Players
-            renderPlayer(els.p1, state.p1, state.cooldowns);
-            renderPlayer(els.p2, state.p2, state.cooldowns);
+            // 2. Render Players (with interpolation for smoothness)
+            renderPlayer(els.p1, state.p1, state.cooldowns, alpha);
+            renderPlayer(els.p2, state.p2, state.cooldowns, alpha);
 
             // 3. Render Obstacles
             renderObstacles(state.obstacles);
@@ -865,11 +934,12 @@
             // 4. Render Explosions
             renderExplosions(state.explosions);
 
-            // 5. Ground Scroll
+            // 5. Ground Scroll (smooth interpolation)
+            const scrollSpeed = state.speed * alpha;
             if (state.round === 1) {
-                groundScrollX = (groundScrollX + state.speed) % 800;
+                groundScrollX = (groundScrollX + scrollSpeed) % 800;
             } else {
-                groundScrollX = (groundScrollX - state.speed + 800) % 800;
+                groundScrollX = (groundScrollX - scrollSpeed + 800) % 800;
             }
             els.ground.style.backgroundPosition = `-${groundScrollX}px 0`;
 
@@ -978,30 +1048,28 @@
         }
 
         function renderExplosions(explosions) {
+            // Hide all existing
+            explosionPool.forEach(el => el.style.display = 'none');
+
             explosions.forEach((exp, index) => {
-                const el = document.createElement('div');
-                el.style.position = 'absolute';
-                el.style.width = '48px';
-                el.style.height = '48px';
-                el.style.backgroundImage = "url('assets/explosion.png')";
-                el.style.backgroundSize = 'auto 48px';
-                el.style.imageRendering = 'pixelated';
-                el.style.zIndex = '12';
+                let el = explosionPool[index];
+                if (!el) {
+                    el = document.createElement('div');
+                    el.style.position = 'absolute';
+                    el.style.width = '48px';
+                    el.style.height = '48px';
+                    el.style.backgroundImage = "url('assets/explosion.png')";
+                    el.style.backgroundSize = 'auto 48px';
+                    el.style.imageRendering = 'pixelated';
+                    el.style.zIndex = '12';
+                    els.obsLayer.appendChild(el);
+                    explosionPool.push(el);
+                }
+
+                el.style.display = 'block';
                 el.style.left = (exp.x - 8) + 'px';
                 el.style.bottom = (exp.y - 8) + 'px';
-                els.obsLayer.appendChild(el);
-
-                // Animate
-                let frame = 0;
-                const interval = setInterval(() => {
-                    frame++;
-                    if (frame >= 9) {
-                        clearInterval(interval);
-                        el.remove();
-                    } else {
-                        el.style.backgroundPosition = `-${frame * 48}px 0`;
-                    }
-                }, 50);
+                el.style.backgroundPosition = `-${(exp.frame || 0) * 48}px 0`;
             });
         }
 

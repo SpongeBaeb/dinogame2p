@@ -197,6 +197,8 @@
             background-repeat: no-repeat;
             background-size: auto 64px;
             z-index: 15;
+            will-change: transform, background-position;
+            backface-visibility: hidden;
         }
 
         #player2.cooldown {
@@ -226,6 +228,13 @@
             background-size: auto 96px;
             background-repeat: no-repeat;
             image-rendering: pixelated;
+            will-change: transform, background-position;
+            backface-visibility: hidden;
+        }
+
+        .obstacle {
+            will-change: transform;
+            backface-visibility: hidden;
         }
 
         /* Character Selection UI */
@@ -527,8 +536,27 @@
             bombInd: document.getElementById('bomb-indicator'),
             start: document.getElementById('start-screen'),
             over: document.getElementById('game-over'),
-            winMsg: document.getElementById('winner-msg')
+            winMsg: document.getElementById('winner-msg'),
+            // Cached elements for performance
+            p1Score: null,
+            p2Score: null,
+            staminaBar: null,
+            staminaText: null,
+            staminaBox: null,
+            fpsCounter: null,
+            debugBox: null
         };
+
+        // Initialize cached elements after DOM ready
+        function cacheElements() {
+            els.p1Score = document.querySelector('#p1-status .large-score');
+            els.p2Score = document.querySelector('#p2-status .large-score');
+            els.staminaBar = document.getElementById('stamina-bar');
+            els.staminaText = document.getElementById('stamina-text');
+            els.staminaBox = document.getElementById('stamina-box');
+            els.fpsCounter = document.getElementById('fps-counter');
+            els.debugBox = document.getElementById('debug-box');
+        }
 
         let loopId = 0;
         let obsId = 0;
@@ -549,10 +577,14 @@
         let wallTileSize = 40;
         let obstaclePool = [];  // Add this line - pool of reusable DOM elements
         let explosionPool = [];
+        let frameCounter = 0;  // For UI update throttling
 
         const p1Rect = { x: 40, y: 40, w: 32, h: 32 }; // 32x32px Hitbox
 
         function initGame() {
+            // Cache DOM elements first
+            cacheElements();
+
             // Initialize Sliders
             document.getElementById('input-ground-speed').addEventListener('input', (e) => {
                 groundSpeed = parseInt(e.target.value);
@@ -577,17 +609,58 @@
             updateSelection();
         }
 
+        // Character selection card elements cache
+        let charCards = [];
+        let charCardsInitialized = false;
+
+        function initCharacterCards() {
+            if (charCardsInitialized) return;
+            const grid = document.getElementById('char-grid');
+            grid.innerHTML = '';
+
+            CONFIG.characters.forEach((char, index) => {
+                const card = document.createElement('div');
+                card.className = 'char-card';
+
+                const preview = document.createElement('div');
+                preview.className = 'char-preview';
+                preview.style.backgroundImage = `url('assets/${char}.png')`;
+                card.appendChild(preview);
+
+                const name = document.createElement('div');
+                name.className = 'char-name';
+                name.innerText = char;
+                card.appendChild(name);
+
+                const p1Cursor = document.createElement('div');
+                p1Cursor.className = 'p1-cursor';
+                p1Cursor.style.display = 'none';
+                card.appendChild(p1Cursor);
+
+                const p2Cursor = document.createElement('div');
+                p2Cursor.className = 'p2-cursor';
+                p2Cursor.style.display = 'none';
+                card.appendChild(p2Cursor);
+
+                grid.appendChild(card);
+                charCards.push({ card, preview, p1Cursor, p2Cursor });
+            });
+            charCardsInitialized = true;
+        }
+
         function updateSelection(timestamp) {
             if (!state.selectionPhase) return;
+
+            // Initialize cards once
+            if (!charCardsInitialized) {
+                initCharacterCards();
+            }
 
             // [NEW] Time-based animation logic
             const now = timestamp || performance.now();
             if (!lastSelTime) lastSelTime = now;
             const deltaTime = now - lastSelTime;
             lastSelTime = now;
-
-            const grid = document.getElementById('char-grid');
-            grid.innerHTML = '';
 
             // Update Animation
             selAnimTimer += deltaTime;
@@ -596,44 +669,39 @@
                 selAnimFrame = (selAnimFrame + 1) % 4;
             }
 
-            CONFIG.characters.forEach((char, index) => {
-                const card = document.createElement('div');
-                card.className = 'char-card';
-                if (index === p1SelIndex) card.classList.add('selected-p1');
-                if (index === p2SelIndex) card.classList.add('selected-p2');
+            // Update card visuals (no DOM creation, just property updates)
+            charCards.forEach((cached, index) => {
+                const { card, preview, p1Cursor, p2Cursor } = cached;
+
+                // Update selection classes
+                card.classList.toggle('selected-p1', index === p1SelIndex);
+                card.classList.toggle('selected-p2', index === p2SelIndex);
 
                 // Lock visual
                 if ((p1Confirmed && index === p1SelIndex && index !== p2SelIndex) ||
                     (p2Confirmed && index === p2SelIndex && index !== p1SelIndex)) {
                     card.style.opacity = '0.5';
+                } else {
+                    card.style.opacity = '1';
                 }
 
-                const preview = document.createElement('div');
-                preview.className = 'char-preview';
-                preview.style.backgroundImage = `url('assets/${char}.png')`;
+                // Update animation frame
                 preview.style.backgroundPosition = `-${selAnimFrame * 64}px 0`;
-                card.appendChild(preview);
 
-                const name = document.createElement('div');
-                name.className = 'char-name';
-                name.innerText = char;
-                card.appendChild(name);
-
+                // Update cursors
                 if (index === p1SelIndex) {
-                    const cursor = document.createElement('div');
-                    cursor.className = 'p1-cursor';
-                    cursor.innerText = p1Confirmed ? 'READY' : 'P1';
-                    card.appendChild(cursor);
+                    p1Cursor.style.display = 'block';
+                    p1Cursor.innerText = p1Confirmed ? 'READY' : 'P1';
+                } else {
+                    p1Cursor.style.display = 'none';
                 }
 
                 if (index === p2SelIndex) {
-                    const cursor = document.createElement('div');
-                    cursor.className = 'p2-cursor';
-                    cursor.innerText = p2Confirmed ? 'READY' : 'P2';
-                    card.appendChild(cursor);
+                    p2Cursor.style.display = 'block';
+                    p2Cursor.innerText = p2Confirmed ? 'READY' : 'P2';
+                } else {
+                    p2Cursor.style.display = 'none';
                 }
-
-                grid.appendChild(card);
             });
 
             if (p1Confirmed && p2Confirmed) {
@@ -710,9 +778,11 @@
 
                 // --- FPS COUNTER START (DELETE LATER) ---
                 const fps = Math.round(1000 / deltaTime);
-                const fpsEl = document.getElementById('fps-counter');
-                if (fpsEl) fpsEl.innerText = 'FPS: ' + fps;
+                if (els.fpsCounter) els.fpsCounter.innerText = 'FPS: ' + fps;
                 // --- FPS COUNTER END ---
+
+                // Increment frame counter for UI throttling
+                frameCounter++;
 
                 if (now - state.startTime >= CONFIG.roundTime) {
                     endRound("TIME UP! SURVIVED!");
@@ -854,12 +924,13 @@
                 // Collision Logic with Sneak
                 const p1H = state.p1Sneak ? (p1Rect.h - CONFIG.sneakOffset) : p1Rect.h;
 
-                // Debug box update
-                const debugBox = document.getElementById('debug-box');
-                debugBox.style.left = p1Rect.x + 'px';
-                debugBox.style.bottom = p1Rect.y + 'px';
-                debugBox.style.width = p1Rect.w + 'px';
-                debugBox.style.height = p1H + 'px';
+                // Debug box update (throttled)
+                if (frameCounter % 6 === 0 && els.debugBox) {
+                    els.debugBox.style.left = p1Rect.x + 'px';
+                    els.debugBox.style.bottom = p1Rect.y + 'px';
+                    els.debugBox.style.width = p1Rect.w + 'px';
+                    els.debugBox.style.height = p1H + 'px';
+                }
 
                 // Obstacle Logic
                 for (let i = state.obs.length - 1; i >= 0; i--) {
@@ -1116,18 +1187,21 @@
                 obstaclePool[i].style.display = 'none';
             }
 
-            // UI Updates
-            els.timer.innerText = Math.ceil((CONFIG.roundTime - (now - state.startTime)) / 1000);
-            if (parseInt(els.timer.innerText) <= 10) els.timer.classList.add('warning');
-            else els.timer.classList.remove('warning');
+            // UI Updates (throttled to every 6 frames for performance)
+            if (frameCounter % 6 === 0) {
+                const remainingTime = Math.ceil((CONFIG.roundTime - (now - state.startTime)) / 1000);
+                els.timer.innerText = remainingTime;
+                if (remainingTime <= 10) els.timer.classList.add('warning');
+                else els.timer.classList.remove('warning');
 
-            document.querySelector('#p1-status .large-score').innerText = (state.round === 1) ? state.score : state.scores.p1;
-            document.querySelector('#p2-status .large-score').innerText = (state.round === 2) ? state.score : state.scores.p2;
+                els.p1Score.innerText = (state.round === 1) ? state.score : state.scores.p1;
+                els.p2Score.innerText = (state.round === 2) ? state.score : state.scores.p2;
 
-            document.getElementById('stamina-bar').style.width = state.stamina + '%';
-            document.getElementById('stamina-text').innerText = Math.floor(state.stamina) + '%';
+                els.staminaBar.style.width = state.stamina + '%';
+                els.staminaText.innerText = Math.floor(state.stamina) + '%';
+            }
 
-            const staminaBox = document.getElementById('stamina-box');
+            // Stamina box position (updated every frame for smooth following)
             let targetX, targetY;
 
             // 현재 라운드의 공격자(Attacker) 위치 가져오기
@@ -1144,8 +1218,8 @@
             // 플레이어 머리 위로 위치 설정 (플레이어 크기 64px 고려)
             // left: 플레이어 중앙(X + 32)
             // bottom: 플레이어 머리 위(Y + 80 정도)
-            staminaBox.style.left = (targetX + 32) + 'px';
-            staminaBox.style.bottom = (targetY + 40) + 'px';
+            els.staminaBox.style.left = (targetX + 32) + 'px';
+            els.staminaBox.style.bottom = (targetY + 40) + 'px';
             // Ground Scroll
             if (state.round === 1) {
                 groundScrollX = (groundScrollX + groundSpeed) % 800;
